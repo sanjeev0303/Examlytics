@@ -1,0 +1,462 @@
+openapi: 3.1.0
+info:
+  title: Examlytics API
+  version: 1.0.0
+  description: Production-ready SaaS exam analytics platform.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    # Common Responses
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: "INVALID_INPUT"
+            message:
+              type: string
+              example: "Invalid email format"
+
+    # Domain Models
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [USER, ADMIN]
+
+    ExamConfig:
+      type: object
+      required:
+        - type
+        - difficulty
+        - questionCount
+      properties:
+        type:
+          type: string
+          enum: [JOB, ACADEMIC, IMPROVEMENT]
+          description: Type of exam to generate
+        difficulty:
+          type: string
+          enum: [EASY, MEDIUM, HARD]
+        questionCount:
+          type: integer
+          minimum: 5
+          maximum: 50
+        topicId:
+          type: string
+          description: Optional topic ID for focused practice (required for IMPROVEMENT type if not inferred)
+
+    ExamSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [LIVE, COMPLETED]
+        totalQuestions:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum: [MCQ]
+
+    ExamSubmission:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required:
+              - questionId
+              - answer
+              - timeSpent
+            properties:
+              questionId:
+                type: string
+              answer:
+                type: string
+              timeSpent:
+                type: integer
+                description: Time spent in seconds
+
+    ExamAnalysis:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        score:
+          type: number
+        accuracy:
+          type: number
+        timeTaken:
+          type: integer
+        weakTopics:
+          type: array
+          items:
+            type: object
+            properties:
+              topicId:
+                type: string
+              name:
+                type: string
+              accuracy:
+                type: number
+        recommendation:
+          type: string
+
+    DashboardStats:
+      type: object
+      properties:
+        totalExams:
+          type: integer
+        averageScore:
+          type: number
+        weakTopics:
+          type: array
+          items:
+            type: object
+            properties:
+              topic:
+                 type: string
+              status:
+                 type: string
+                 enum: [WEAK, IMPROVING, STRONG]
+
+paths:
+  # AUTH
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticates a user and returns a session/token. For Clerk integration, this might be a sync/webhook or token exchange. Assuming standard login for API spec sake or 'sync' as implemented.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                clerkId:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                          user:
+                            $ref: '#/components/schemas/User'
+
+  # DASHBOARD
+  /dashboard/overview:
+    get:
+      summary: Get user dashboard overview
+      description: Returns aggregated statistics for the user's dashboard.
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/DashboardStats'
+
+  # EXAMS
+  /exams/create:
+    post:
+      summary: Create a new exam
+      description: Generates a new exam session based on configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamConfig'
+      responses:
+        '201':
+          description: Exam created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/ExamSession'
+
+  /exams/{examId}/submit:
+    post:
+      summary: Submit exam answers
+      description: Submits answers for an exam session and triggers analysis.
+      parameters:
+        - in: path
+          name: examId
+          schema:
+            type: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamSubmission'
+      responses:
+        '200':
+          description: Exam submitted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/ExamAnalysis'
+
+  /exams/{examId}/analysis:
+    get:
+      summary: Get exam analysis
+      description: Retrieves the detailed analysis for a completed exam session.
+      parameters:
+        - in: path
+          name: examId
+          schema:
+            type: string
+          required: true
+      responses:
+        '200':
+          description: Analysis retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/ExamAnalysis'
+
+  # WEAK TOPIC EXAMS
+  /exams/weak-topic:
+    post:
+      summary: Generate weak-topic focused exam
+      description: Creates an improvement exam targeting a specific weak topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - topicId
+              properties:
+                topicId:
+                  type: string
+      responses:
+        '201':
+          description: Improvement exam created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/ExamSession'
+
+  # HISTORY
+  /exams/history:
+    get:
+      summary: Get exam history
+      description: Returns a paginated list of past exam sessions.
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: History retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ExamAnalysis'
+
+  # ADMIN
+  /admin/metrics:
+    get:
+      summary: Global platform metrics
+      description: Returns system-wide usage statistics (Admin only).
+      responses:
+        '200':
+          description: Metrics retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          totalUsers:
+                            type: integer
+                          activeSessions:
+                            type: integer
+                          totalExamsTaken:
+                            type: integer
+        '403':
+          description: Forbidden (Non-admin)
+          content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/questions:
+    get:
+      summary: List questions
+      description: Returns a paginated list of questions for management.
+      responses:
+        '200':
+          description: Questions listed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Question'
+    post:
+      summary: Create question
+      description: Adds a new question to the database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+                - topicId
+                - difficulty
+                - correctAnswer
+                - options
+              properties:
+                text:
+                  type: string
+                topicId:
+                  type: string
+                difficulty:
+                  type: string
+                  enum: [EASY, MEDIUM, HARD]
+                correctAnswer:
+                  type: string
+                options:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Question created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Question'

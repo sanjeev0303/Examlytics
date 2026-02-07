@@ -1,0 +1,143 @@
+openapi: 3.1.0
+info:
+  title: Examlytics Admin API
+  version: 1.0.0
+  description: Official Admin API for Examlytics Intelligence Platform.
+  contact:
+    name: Platform Engineering
+    email: admin@examlytics.com
+
+servers:
+  - url: https://api.examlytics.com/v1
+    description: Production Server
+
+paths:
+  /admin/metrics/overview:
+    get:
+      summary: Get executive dashboard metrics
+      tags: [Metrics]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active_users:
+                    type: integer
+                    example: 1245
+                  exams_pending:
+                    type: integer
+                    example: 45
+                  ai_cost_today:
+                    type: number
+                    format: float
+                    example: 14.20
+                  system_status:
+                    type: string
+                    enum: [HEALTHY, DEGRADED, OUTAGE]
+                    example: HEALTHY
+
+  /admin/anomalies:
+    get:
+      summary: List recent AI anomalies
+      tags: [Anomalies]
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [HIGH, MEDIUM, LOW]
+      responses:
+        '200':
+          description: List of anomalies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Anomaly'
+
+  /admin/anomalies/{id}:
+    get:
+      summary: Get anomaly details
+      tags: [Anomalies]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Anomaly details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnomalyDetail'
+    post:
+      summary: Resolve anomaly
+      tags: [Anomalies]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution:
+                  type: string
+                  enum: [FALSE_POSITIVE, CONFIRMED, IGNORED]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Resolved successfully
+
+components:
+  schemas:
+    Anomaly:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+        confidence:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+
+    AnomalyDetail:
+      allOf:
+        - $ref: '#/components/schemas/Anomaly'
+        - type: object
+          properties:
+            ai_explanation:
+              type: string
+            metrics:
+              type: object
+              additionalProperties: true
+            recommended_actions:
+              type: array
+              items:
+                type: string
+
+  securitySchemes:
+    AdminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - AdminAuth: []
