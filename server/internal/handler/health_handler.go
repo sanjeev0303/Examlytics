@@ -188,9 +188,10 @@ func (h *HealthHandler) checkRedis(ctx context.Context) map[string]interface{} {
 func (h *HealthHandler) checkCircuit() map[string]interface{} {
 	state := h.aiCircuit.State()
 	status := "green"
-	if state == resilience.StateOpen {
+	switch state {
+	case resilience.StateOpen:
 		status = "red"
-	} else if state == resilience.StateHalfOpen {
+	case resilience.StateHalfOpen:
 		status = "yellow"
 	}
 	return map[string]interface{}{

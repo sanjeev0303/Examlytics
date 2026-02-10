@@ -357,14 +357,19 @@ func (s *ExamServiceImpl) StartExam(ctx context.Context, clerkID string, req dto
 		"language":       req.Language,      // Mapped to snake_case for Python
 		"job_category":   req.JobCategory,   // Mapped to snake_case for Python
 		"subjects":       req.Subjects,      // Mapped to snake_case for Python
-		"source":         req.Source,        // Mapped to snake_case for Python
+	}
+
+	source := req.Source
+	if source == "" {
+		source = "client"
 	}
 
 	job := map[string]interface{}{
 		"job_id":      session.ID,
 		"user_id":     clerkID,     // Changed from clerkId
 		"preferences": preferences, // Changed from request
-		"created_at":  time.Now(),
+		"source":      source,
+		"created_at":  time.Now().Unix(),
 	}
 
 	jobBytes, _ := json.Marshal(job)

@@ -46,12 +46,12 @@ func NewWorkerPool(workers, queueSize int) *WorkerPool {
 func (wp *WorkerPool) Start() {
 	for i := 0; i < wp.workers; i++ {
 		wp.wg.Add(1)
-		go wp.worker(i)
+		go wp.worker()
 	}
 	atomic.StoreInt32(&wp.running, 1)
 }
 
-func (wp *WorkerPool) worker(id int) {
+func (wp *WorkerPool) worker() {
 	defer wp.wg.Done()
 
 	for {

@@ -41,7 +41,15 @@ def validate_job(job: dict) -> tuple[bool, str]:
         return False, f"Invalid source: {job.get('source')} (must be in {allowed_sources})"
 
     # Check if job is stale (older than 24 hours)
-    job_age = time.time() - job.get("created_at", 0)
+    try:
+        created_at = float(job.get("created_at", 0))
+        if created_at == 0: # Handle explicit 0 or missing key default
+             created_at = time.time()
+    except (ValueError, TypeError):
+         created_at = time.time() # Default to now if invalid
+         print(f"⚠️ Warning: Invalid created_at for job {job.get('job_id')}, treating as fresh.")
+
+    job_age = time.time() - created_at
     if job_age > 86400:  # 24 hours
         return False, f"Stale job: {job_age/3600:.1f} hours old"
 

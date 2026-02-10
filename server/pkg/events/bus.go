@@ -89,11 +89,11 @@ func (eb *EventBus) Start() {
 
 	for i := 0; i < eb.workers; i++ {
 		eb.wg.Add(1)
-		go eb.worker(i)
+		go eb.worker()
 	}
 }
 
-func (eb *EventBus) worker(id int) {
+func (eb *EventBus) worker() {
 	defer eb.wg.Done()
 
 	for {
