@@ -26,7 +26,7 @@ concurrency_semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
 
 @app.middleware("http")
 async def limit_concurrency(request: Request, call_next):
-    if request.url.path in ["/health", "/metrics", "/docs", "/openapi.json"]:
+    if request.url.path in ["/", "/health", "/metrics", "/docs", "/openapi.json"]:
         return await call_next(request)
 
     try:
@@ -44,7 +44,7 @@ async def limit_concurrency(request: Request, call_next):
 
 @app.middleware("http")
 async def verify_internal_secret(request: Request, call_next):
-    if request.url.path in ["/health", "/docs", "/openapi.json"]:
+    if request.url.path in ["/", "/health", "/docs", "/openapi.json"]:
         return await call_next(request)
 
     secret = request.headers.get("X-Internal-Secret")
