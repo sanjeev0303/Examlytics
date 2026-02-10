@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/examlytics/server/internal/config"
 	"github.com/examlytics/server/internal/database"
@@ -14,7 +15,12 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		// Load .env file if it exists
+		if _, err := os.Stat(".env"); err == nil {
+			if err := godotenv.Load(); err != nil {
+				log.Println("Error loading .env file")
+			}
+		}
 	}
 
 	cfg := config.Load()

@@ -32,8 +32,20 @@ type Config struct {
 
 // Load reads configuration from environment variables
 func Load() *Config {
-	if err := godotenv.Load(); err != nil {
-		log.Warn().Msg("No .env file found, using environment variables")
+	// Load .env file if it exists (development)
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(); err != nil {
+			log.Warn().Err(err).Msg("Error loading .env file")
+		}
+	} else {
+		// Log informational message instead of warning in production
+		log.Info().Msg("No .env file found, assuming production environment")
+	}
+
+	// Default to production if .env is missing, otherwise development
+	envDefault := "development"
+	if _, err := os.Stat(".env"); err != nil {
+		envDefault = "production"
 	}
 
 	port, err := strconv.Atoi(getEnv("PORT", "8000"))
@@ -52,7 +64,7 @@ func Load() *Config {
 
 	return &Config{
 		Port:                        port,
-		Env:                         getEnv("ENV", "development"),
+		Env:                         getEnv("ENV", envDefault),
 		LogLevel:                    getEnv("LOG_LEVEL", "info"),
 		DatabaseURL:                 getEnv("DATABASE_URL", ""),
 		ClerkSecretKey:              getEnv("CLERK_SECRET_KEY", ""),
