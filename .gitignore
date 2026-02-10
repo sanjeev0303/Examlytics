@@ -35,8 +35,10 @@ tmp/
 
 # Documentation & Design
 inventory/
-admin_dashboard_design.md
-ARCHITECTURE.md
+*.md
+!README.md
+*.txt
 
-# Load Testing
+# Load Testing & Other
 load_tester/
+frontend_test/

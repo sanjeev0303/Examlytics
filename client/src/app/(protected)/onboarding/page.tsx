@@ -28,7 +28,12 @@ export default function OnboardingPage() {
 
   const mutation = useMutation({
     mutationFn: (data: { targetGoal: string; preferredTopics: string[] }) =>
-      api.onboardUser(data),
+      api.onboardUser({
+        email: user?.primaryEmailAddress?.emailAddress || "",
+        name: user?.fullName || "",
+        role: data.targetGoal,
+        examTypes: data.preferredTopics
+      }),
     onSuccess: () => {
       router.push("/dashboard");
     },

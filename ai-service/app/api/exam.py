@@ -49,10 +49,18 @@ async def generate_exam(request: ExamGenerateRequest):
         user_level = prompt_context.get("user_level", "Beginner")
         topics_str = ", ".join(request.topics) if request.topics else "General"
 
+        # Custom fields for hash
+        custom_params = []
+        if request.language: custom_params.append(f"lang:{request.language}")
+        if request.job_category: custom_params.append(f"job:{request.job_category}")
+        if request.subjects: custom_params.append(f"subj:{'-'.join(sorted(request.subjects))}")
+
+        custom_str = "|".join(custom_params)
+
         exam_hash = CacheService._generate_exam_hash(
             request.exam_type,
             "MEDIUM",
-            topics_str,
+            topics_str + ("|" + custom_str if custom_str else ""),
             user_level
         )
 
@@ -94,7 +102,10 @@ async def generate_exam(request: ExamGenerateRequest):
             "mode": request.mode,
             "question_count": request.question_count,
             "difficulty": "MEDIUM",
-            "topic_id": topics_str
+            "topic_id": topics_str,
+            "language": request.language,
+            "job_category": request.job_category,
+            "subjects": request.subjects
         }
 
         questions_data = await generate_exam_content(preferences, context=prompt_context)

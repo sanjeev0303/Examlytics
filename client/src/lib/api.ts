@@ -10,6 +10,7 @@ export const api = {
   submitExam: ExamService.submit,
   getExamSession: ExamService.getSession,
   getExamHistory: ExamService.getHistory,
+  getExamStatus: ExamService.getExamStatus,
 
   // User Service
   onboardUser: UserService.onboard,
@@ -18,4 +19,5 @@ export const api = {
 
   // Analytics Service
   getWeakTopics: AnalyticsService.getWeakTopics,
+  getStreaks: AnalyticsService.getStreaks,
 };

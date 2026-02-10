@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { Target, ArrowRight, AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Target, ArrowRight, AlertTriangle, TrendingUp, CheckCircle2, Zap } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -20,27 +20,21 @@ export default function WeakTopicsPage() {
     queryFn: async () => {
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
-        const headers: Record<string, string> = {
-            Authorization: `Bearer ${token}`
-        };
-        if (user?.id) {
-            headers["X-Clerk-User-ID"] = user.id;
-        }
-        return api.getWeakTopics({ headers });
+        return api.getWeakTopics({
+            headers: { Authorization: `Bearer ${token}` }
+        });
     },
     enabled: !!user?.id,
-    staleTime: 60 * 1000,
-    gcTime: 5 * 60 * 1000,
   });
 
-  if (!user || (!isLoading && !user.id)) return <div className="flex h-screen items-center justify-center">Please sign in to view weak topics.</div>;
+  if (!user || (!isLoading && !user.id)) return <div className="flex h-screen items-center justify-center text-text-secondary">Please sign in to view weak topics.</div>;
 
   if (isLoading) {
       return (
           <div className="space-y-8 animate-fade-in-up">
               <div>
-                  <h1 className="text-3xl font-bold font-heading text-gray-900 dark:text-white">Weak Topics</h1>
-                  <p className="text-gray-500 dark:text-gray-400 mt-2">AI-driven insights to help you improve faster.</p>
+                  <h1 className="text-3xl font-bold font-heading text-text-primary">Weak Topics</h1>
+                  <p className="text-text-secondary mt-2">AI-driven insights to help you improve faster.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -51,127 +45,105 @@ export default function WeakTopicsPage() {
       )
   }
 
-  // Processing & Grouping by Severity
-  const criticalTopics: any[] = [];
-  const improvementTopics: any[] = [];
-  const masteredTopics: any[] = [];
+  // --- DATA PROCESSING ---
+  // Calculates ROI: (100 - Accuracy) * Weight
+  // Weight could be based on importance, but for now we assume all topics equal.
 
-  if (weakTopics && Array.isArray(weakTopics)) {
-    weakTopics.forEach((wt: any) => {
-        const accuracy = Math.round(wt.accuracy);
-        const item = { ...wt, accuracy };
-
-        if (accuracy < 50) {
-            criticalTopics.push(item);
-        } else if (accuracy < 80) {
-            improvementTopics.push(item);
-        } else {
-            masteredTopics.push(item);
-        }
-    });
-  }
-
-  // Sorting: Lowest accuracy first
-  criticalTopics.sort((a, b) => a.accuracy - b.accuracy);
-  improvementTopics.sort((a, b) => a.accuracy - b.accuracy);
-
-  const Section = ({ title, topics, icon: Icon, colorClass, emptyMsg }: any) => (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-            <Icon className={`h-5 w-5 ${colorClass}`} />
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            <Badge variant="secondary" className="ml-2">{topics.length}</Badge>
-        </div>
-
-        {topics.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {topics.map((topic: any) => (
-                <Card key={`${topic.topicName}-${topic.examType}`} className="hover:shadow-lg transition-all border-l-4 group" style={{ borderLeftColor: colorClass.includes('red') ? '#ef4444' : colorClass.includes('yellow') ? '#eab308' : '#22c55e' }}>
-                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div className="space-y-1">
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-wider mb-1">
-                            {topic.examType}
-                        </Badge>
-                        <CardTitle className="text-lg font-bold leading-tight line-clamp-2">
-                            {topic.topicName}
-                        </CardTitle>
-                    </div>
-                    {/* Radial Progress Mini */}
-                    <div className="relative flex items-center justify-center p-2">
-                        <span className={`text-sm font-bold ${colorClass}`}>{topic.accuracy}%</span>
-                    </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mt-2 mb-4">
-                            <div
-                                className={`h-1.5 rounded-full transition-all duration-500 ${colorClass.replace('text-', 'bg-')}`}
-                                style={{ width: `${Math.min(topic.accuracy, 100)}%` }}
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-                            <span>{topic.attempts} Attempt{topic.attempts !== 1 ? 's' : ''}</span>
-                            <span>{topic.status && topic.status !== 'Unknown' ? topic.status : 'Analysis Pending'}</span>
-                        </div>
-
-                        <Button
-                            className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => router.push(`/exam?type=${topic.examType}&topic=${encodeURIComponent(topic.topicName)}`)}
-                        >
-                            Practice Now <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                    </CardContent>
-                </Card>
-                ))}
-            </div>
-        ) : (
-            <div className="p-8 text-center bg-gray-50 dark:bg-zinc-900/50 rounded-xl border border-dashed text-gray-500 text-sm">
-                {emptyMsg}
-            </div>
-        )}
-      </div>
-  );
+  const processedTopics = (weakTopics || []).map((t: any) => ({
+      ...t,
+      roi: Math.round(100 - t.accuracy),
+      severity: t.accuracy < 50 ? "critical" : t.accuracy < 80 ? "warning" : "success"
+  })).sort((a: any, b: any) => b.roi - a.roi); // High ROI first
 
   return (
-    <div className="space-y-12 animate-fade-in-up pb-12">
-      <div className="relative overflow-hidden rounded-3xl bg-linear-to-r from-rose-50 to-indigo-50 dark:from-rose-950/20 dark:to-indigo-950/20 p-8 md:p-12 mb-8">
-        <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-bold font-heading text-gray-900 dark:text-white mb-4">
-                Targeted Improvement
-            </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl">
-                Our AI analyzes your performance to identify exactly where you can gain the most marks. Focusing on Critical topics yields the highest ROI.
+    <div className="space-y-8 animate-fade-in-up pb-12">
+
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 className="text-3xl font-bold font-heading text-text-primary">Targeted Improvement</h1>
+            <p className="text-text-secondary mt-2 max-w-2xl">
+                Focusing on these high-ROI topics is the fastest way to improve your overall score.
             </p>
         </div>
-        <Target className="absolute right-0 top-0 h-64 w-64 -mr-12 -mt-12 text-rose-500/10 rotate-12" />
+        <div className="flex items-center gap-2 text-sm text-text-muted bg-bg-surface border border-border-subtle px-3 py-1.5 rounded-full">
+            <Zap className="h-4 w-4 text-warning" />
+            <span>Sorted by Potential Score Boost</span>
+        </div>
       </div>
 
-      <Section
-        title="Critical Attention Needed"
-        topics={criticalTopics}
-        icon={AlertTriangle}
-        colorClass="text-red-600"
-        emptyMsg="Great job! You have no critical weak topics. Keep maintaining your streak!"
-      />
+      {/* Topics Grid */}
+      {processedTopics.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {processedTopics.map((topic: any, i: number) => {
+                const isCritical = topic.severity === "critical";
+                const isWarning = topic.severity === "warning";
 
-      <Section
-        title="Needs Improvement"
-        topics={improvementTopics}
-        icon={TrendingUp}
-        colorClass="text-yellow-600"
-        emptyMsg="No topics in this range. You're either mastering everything or just getting started."
-      />
+                return (
+                    <Card
+                        key={`${topic.topicName}-${i}`}
+                        variant={isCritical ? "raised" : "default"}
+                        className={`group cursor-pointer hover:border-accent-primary/20 transition-all duration-300 ${isCritical ? 'border-l-4 border-l-critical dark:border-l-critical' : ''}`}
+                    >
+                        <CardHeader className="pb-3">
+                            <div className="flex justify-between items-start mb-2">
+                                <Badge variant={isCritical ? "destructive" : isWarning ? "warning" : "success"}>
+                                    {topic.accuracy}% Accuracy
+                                </Badge>
+                                {isCritical && <AlertTriangle className="h-4 w-4 text-critical" />}
+                            </div>
+                            <CardTitle className="text-lg leading-tight line-clamp-2 min-h-12">
+                                {topic.topicName}
+                            </CardTitle>
+                        </CardHeader>
 
-      {masteredTopics.length > 0 && (
-          <Section
-            title="Mastered Topics"
-            topics={masteredTopics}
-            icon={CheckCircle2}
-            colorClass="text-emerald-600"
-            emptyMsg=""
-          />
+                        <CardContent className="pb-3">
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-xs text-text-secondary">
+                                    <span>Proficiency</span>
+                                    <span>{topic.accuracy}/100</span>
+                                </div>
+                                <div className="h-2 w-full bg-accent-secondary rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full ${isCritical ? 'bg-critical' : isWarning ? 'bg-warning' : 'bg-success'}`}
+                                        style={{ width: `${topic.accuracy}%` }}
+                                    />
+                                </div>
+                                <div className="p-2.5 bg-accent-secondary/50 rounded-lg">
+                                    <p className="text-xs font-medium text-text-secondary flex items-center gap-2">
+                                        <TrendingUp className="h-3 w-3" />
+                                        Potential Boost: <span className="text-text-primary font-bold">+{topic.roi} pts</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+
+                        <CardFooter>
+                            <Button
+                                className="w-full text-xs"
+                                variant={isCritical ? "destructive" : "secondary"}
+                                onClick={() => router.push(`/exam?type=${topic.examType}&topic=${encodeURIComponent(topic.topicName)}`)}
+                            >
+                                Start Repair Session
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                );
+            })}
+        </div>
+      ) : (
+        <div className="p-12 text-center border border-dashed border-border-subtle rounded-2xl bg-bg-surface/50">
+            <div className="mx-auto w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 className="h-8 w-8 text-success" />
+            </div>
+            <h3 className="text-lg font-bold text-text-primary">All Systems Go!</h3>
+            <p className="text-text-secondary mt-2">
+                No weak topics detected. You are performing above threshold in all tracked areas.
+            </p>
+            <Button className="mt-6" onClick={() => router.push("/exam")}>
+                Start Comprehensive Review
+            </Button>
+        </div>
       )}
     </div>
   );

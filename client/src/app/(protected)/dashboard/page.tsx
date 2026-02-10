@@ -6,26 +6,27 @@ import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import {
-  BarChart2,
   Target,
   Trophy,
-  Clock
+  Clock,
+  ArrowRight,
+  Zap,
+  BookOpen,
+  TrendingUp,
+  Brain
 } from "lucide-react";
-import { StatCard } from "@/components/ui/StatCard";
-import {
-  PolarAngleAxis,
-  PolarGrid,
-  Radar,
-  RadarChart,
-  Label,
-} from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { TrendIndicator } from "@/components/ui/trend-indicator";
+import { LearningHealthIndex } from "@/components/dashboard/learning-health-index";
+import { InsightCard } from "@/components/dashboard/insight-card";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { AccuracyTrendChart } from "@/components/analytics/accuracy-trend-chart";
+import { FocusDecayChart } from "@/components/analytics/focus-decay-chart";
+import { TopicRadar } from "@/components/analytics/topic-radar";
+
+import { StreakWidget } from "@/components/dashboard/StreakWidget";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -42,29 +43,25 @@ export default function DashboardPage() {
     queryFn: async () => {
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
-        const headers: Record<string, string> = {
-            Authorization: `Bearer ${token}`
-        };
-        if (user?.id) {
-            headers["X-Clerk-User-ID"] = user.id;
-        }
-        return api.getExamHistory({ headers });
+        return api.getExamHistory({
+            headers: { Authorization: `Bearer ${token}` }
+        });
     },
     enabled: !!user?.id,
   });
 
-  // Calculate Aggregated Stats
-  const exams = history || [];
-  const completedExams = exams.filter((e: any) => e.status === "COMPLETED");
+  const { data: streakData } = useQuery({
+    queryKey: ["streakData"],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      return api.getStreaks({
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    enabled: !!user?.id,
+  });
 
-  const totalQuestions = completedExams.reduce((acc: number, e: any) => acc + (e.totalQuestions || 0), 0);
-  const avgAccuracy = completedExams.length
-    ? completedExams.reduce((acc: number, e: any) => acc + (e.accuracy || 0), 0) / completedExams.length
-    : 0;
-
-  const avgTimePerQ = completedExams.length && totalQuestions
-    ? completedExams.reduce((acc: number, e: any) => acc + (e.timeTaken || 0), 0) / totalQuestions
-    : 0;
 
   const { data: weakTopicsData } = useQuery({
     queryKey: ["weakTopics"],
@@ -78,206 +75,196 @@ export default function DashboardPage() {
     enabled: !!user?.id,
   });
 
+  // --- DATA PROCESSING ---
+  const exams = history || [];
+  const completedExams = exams.filter((e: any) => e.status === "COMPLETED");
+
+  // Calculate LHI (Mock calculation for now)
+  const avgAccuracy = completedExams.length
+    ? completedExams.reduce((acc: number, e: any) => acc + (e.accuracy || 0), 0) / completedExams.length
+    : 0;
+
+  const lhiScore = Math.round(avgAccuracy > 0 ? avgAccuracy : 72);
   const displayWeakTopics = weakTopicsData || [];
 
-  // --- SLOTS ---
+  // Mock Data for Charts (Real app would transform `history`)
+  const accuracyTrendData = [
+      { date: "Mon", score: 65, avg: 60 },
+      { date: "Tue", score: 68, avg: 61 },
+      { date: "Wed", score: 75, avg: 63 },
+      { date: "Thu", score: 72, avg: 64 },
+      { date: "Fri", score: 80, avg: 66 },
+      { date: "Sat", score: 78, avg: 67 },
+      { date: "Sun", score: 85, avg: 69 },
+  ];
+
+  const focusDecayData = [
+      { minute: 5, accuracy: 95, timePerQuestion: 45 },
+      { minute: 15, accuracy: 92, timePerQuestion: 50 },
+      { minute: 30, accuracy: 85, timePerQuestion: 55 },
+      { minute: 45, accuracy: 78, timePerQuestion: 70 }, // Fatigue sets in
+      { minute: 60, accuracy: 70, timePerQuestion: 90 },
+  ];
+
+  const radarData = [
+      { topic: "DSA", score: 80, benchmark: 90 },
+      { topic: "DBMS", score: 65, benchmark: 85 },
+      { topic: "CN", score: 70, benchmark: 80 },
+      { topic: "OS", score: 90, benchmark: 85 },
+      { topic: "OOP", score: 85, benchmark: 75 },
+      { topic: "Sys Design", score: 60, benchmark: 70 },
+  ];
+
+
+  // --- COMPONENTS ---
 
   const HeaderSlot = (
-    <div className="relative w-full overflow-hidden rounded-3xl bg-linear-to-br from-indigo-900 to-indigo-950 p-8 text-white shadow-2xl dark:from-indigo-950 dark:to-black">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl opacity-50" />
-        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl opacity-50" />
-
-        <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div className="max-w-2xl space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-medium text-indigo-100 ring-1 ring-inset ring-indigo-500/30">
-                Early Access
-              </span>
-              <span className="text-xs text-indigo-200">v1.2.0</span>
+    <div className="flex flex-col gap-2 w-full">
+        <div className="flex items-center justify-between">
+            <div>
+                <h1 className="text-3xl font-bold font-heading text-text-primary tracking-tight">
+                    Dashboard
+                </h1>
+                <p className="text-text-secondary">
+                    Welcome back, {user?.firstName}. Here is your decision center.
+                </p>
             </div>
-
-            <h1 className="font-heading text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Hello, {user?.firstName || 'Scholar'}
-            </h1>
-
-            <div className="space-y-1">
-              <p className="text-lg font-medium text-indigo-100">
-                Your Learning Health is <span className="text-emerald-400">Excellent</span>
-              </p>
-              <p className="text-sm leading-relaxed text-indigo-200/80">
-                "Your accuracy improved by <strong className="text-white">12%</strong> this week. Arrays and Linked Lists are your strongest assets, but <strong className="text-amber-300">Dynamic Programming</strong> needs attention for your upcoming interview."
-              </p>
+            <div className="hidden md:flex gap-3">
+                 <button className="px-4 py-2 text-sm font-medium text-text-primary bg-bg-surface border border-border-subtle rounded-lg hover:bg-bg-surface-raised transition-colors">
+                    View Reports
+                 </button>
+                 <button
+                    onClick={() => router.push("/exams/create")}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-accent-primary rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                 >
+                    Start Practice
+                 </button>
             </div>
-          </div>
-
-          <div className="flex shrink-0 gap-3">
-             <button
-                 onClick={() => router.push("/exam")}
-                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-indigo-950 shadow-lg shadow-black/10 transition-all hover:bg-indigo-50 hover:shadow-xl active:scale-95"
-             >
-                 <Target className="h-4 w-4" />
-                 Practice Weak Topics
-             </button>
-          </div>
         </div>
-      </div>
+    </div>
   );
 
   const StatsSlot = (
     <>
-        <StatCard
-          label="Knowledge Index"
-          value={`${Math.round(avgAccuracy)}%`}
-          icon={Trophy}
-          trend={{ value: 4.5, isPositive: true }}
-          subtext="Top 15% of peers"
-        />
-        <StatCard
-          label="Total Questions"
-          value={totalQuestions.toLocaleString()}
-          icon={Target}
-          subtext="+24 this week"
-        />
-        <StatCard
-          label="Focus Score"
-          value="8.4"
-          icon={BarChart2}
-          subtext="High consistency"
-        />
-        <StatCard
-          label="Avg Time / Question"
-          value={`${Math.round(avgTimePerQ)}s`}
-          icon={Clock}
-          trend={{ value: 1.2, isPositive: true }}
-          subtext="Improved speed"
-        />
+        {/* 1. Learning Health Index */}
+        <LearningHealthIndex score={lhiScore} trend={2.4} />
+
+        {/* 2. Insight Card */}
+        <div className="md:col-span-2">
+             <InsightCard
+                insight="You tend to rush questions in the first 10 minutes. Slowing down by 15% could improve your score by ~12 points."
+                actionLabel="Practice Pacing"
+                onAction={() => router.push("/exam?mode=pacing")}
+             />
+
+             {/* Replaced Grid with StreakWidget */}
+             <StreakWidget streakData={streakData} />
+        </div>
+
+        {/* 3. Priority Action */}
+        <Card variant="raised" className="bg-linear-to-br from-indigo-900 to-slate-900 text-white border-none relative overflow-hidden">
+             <div className="absolute top-0 right-0 -mt-10 -mr-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+             <CardContent className="h-full flex flex-col justify-between p-6 relative z-10">
+                <div className="space-y-2">
+                    <Badge variant="warning" className="bg-white/10 text-amber-300 border-none">Priority</Badge>
+                    <h3 className="text-lg font-semibold leading-tight">Review 'Dynamic Programming' Errors</h3>
+                    <p className="text-indigo-200 text-sm">5 pending errors from yesterday.</p>
+                </div>
+                <button
+                    onClick={() => router.push("/exam")}
+                    className="mt-4 w-full py-2 bg-white text-indigo-950 font-semibold text-sm rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+                >
+                    Start Review <ArrowRight className="h-4 w-4" />
+                </button>
+             </CardContent>
+        </Card>
     </>
   );
 
-  const ActivitySlot = (
-      <>
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="mb-6">
-                <h3 className="font-heading text-lg font-semibold text-foreground">Focus Areas</h3>
-                <p className="text-sm text-muted-foreground">Topics requiring attention</p>
-            </div>
-
-            <div className="space-y-4">
-                {displayWeakTopics.length > 0 ? displayWeakTopics.slice(0, 4).map((topic: any, i: number) => (
-                <div key={i} className="group relative overflow-hidden rounded-xl border border-border bg-accent/20 p-4 transition-all hover:border-primary/20 hover:bg-accent/40">
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="font-medium text-foreground lowercase first-letter:capitalize">{topic.topicName}</span>
-                        <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
-                            {topic.accuracy}% Acc
-                        </span>
+  const RecentActivitySlot = (
+    <Card className="h-full">
+        <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            {completedExams.slice(0, 5).map((exam: any, i: number) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-border-subtle last:border-0 hover:bg-bg-app/50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer">
+                    <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-accent-primary" />
+                        <div>
+                            <p className="font-medium text-sm text-text-primary">{exam.title || "Quick Practice"}</p>
+                            <p className="text-xs text-text-secondary">{format(new Date(exam.startedAt), "MMM d, h:mm a")}</p>
+                        </div>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                        <div
-                            className="h-full rounded-full bg-rose-500 transition-all duration-500"
-                            style={{ width: `${topic.accuracy}%` }}
-                        />
+                    <div className="text-right">
+                        <span className="font-mono text-sm font-bold text-text-primary">{Math.round(exam.accuracy)}%</span>
                     </div>
-                    <p className="mt-2 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                        Recommended: Practice 15 {topic.topicName} questions.
-                    </p>
                 </div>
-                )) : (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                        <Trophy className="mb-2 h-8 w-8 opacity-20" />
-                        <p className="text-sm">No weak topics detected.</p>
-                    </div>
-                )}
+            ))}
+            {completedExams.length === 0 && (
+                <div className="text-center py-8 text-text-muted text-sm">No recent activity.</div>
+            )}
+
+            <div className="pt-4 border-t border-border-subtle">
+                 <h4 className="text-sm font-medium text-text-secondary mb-4">Topic Proficiency</h4>
+                 {isMounted && <TopicRadar data={radarData} className="border-none shadow-none bg-transparent p-0" />}
             </div>
-
-            <button
-                onClick={() => router.push("/history")}
-                className="mt-6 w-full rounded-lg border border-border bg-transparent py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-                View Full Analysis
-            </button>
-        </div>
-
-        <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-emerald-900 to-emerald-950 p-6 text-white shadow-lg">
-            <div className="absolute top-0 right-0 -mt-8 -mr-8 h-32 w-32 rounded-full bg-emerald-500/20 blur-2xl" />
-            <h4 className="relative z-10 text-lg font-bold">Daily Streak 🔥</h4>
-            <p className="relative z-10 mt-1 text-sm text-emerald-100">You're on a 3-day streak! Complete one more exam to unlock the "Consistent Learner" badge.</p>
-        </div>
-      </>
+        </CardContent>
+    </Card>
   );
 
   return (
     <DashboardLayout
         header={HeaderSlot}
         stats={StatsSlot}
-        recentActivity={ActivitySlot}
+        recentActivity={RecentActivitySlot}
     >
-        {/* Main Charts Content */}
-        <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
-             <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h3 className="font-heading text-lg font-semibold text-foreground">Skill Profile</h3>
-                    <p className="text-sm text-muted-foreground">Detailed breakdown of your topic proficiency</p>
-                </div>
-            </div>
+        {/* Main Content Area: Charts & Weak Topics */}
+        <div className="space-y-6">
 
-            <div className="flex h-[350px] w-full items-center justify-center">
-                    {isMounted && (
-                    <ChartContainer
-                        config={{
-                        score: { label: "Score", color: "hsl(var(--chart-1))" },
-                        }}
-                        className="aspect-square h-full max-h-[350px] w-full"
-                    >
-                        <RadarChart data={displayWeakTopics.length ? displayWeakTopics : [{topicName: "No Data", accuracy: 0}]}>
-                        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                        <PolarAngleAxis dataKey="topicName" tick={{ fill: "var(--foreground)", fontSize: 12, opacity: 0.7 }} />
-                        <PolarGrid stroke="var(--border)" />
-                        <Radar
-                            name="Accuracy"
-                            dataKey="accuracy"
-                            stroke="var(--primary)"
-                            fill="var(--primary)"
-                            fillOpacity={0.2}
-                            dot={{
-                            r: 3,
-                            fill: "var(--background)",
-                            stroke: "var(--primary)",
-                            strokeWidth: 2,
-                            }}
-                        />
-                        </RadarChart>
-                    </ChartContainer>
-                    )}
+            {/* Charts Section */}
+            {isMounted && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AccuracyTrendChart data={accuracyTrendData} />
+                <FocusDecayChart data={focusDecayData} />
             </div>
-        </div>
+            )}
 
-        {/* Recent History List (Mini) */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="mb-4">
-                <h3 className="font-heading text-lg font-semibold text-foreground">Recent Sessions</h3>
-            </div>
-            <div className="space-y-1">
-                {completedExams.slice(0, 3).map((exam: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg p-3 transition-colors hover:bg-accent/50">
-                        <div className="flex items-center gap-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
-                                <BarChart2 size={18} />
-                            </div>
-                            <div>
-                                <p className="font-medium text-foreground">{exam.title || "Quick Practice"}</p>
-                                <p className="text-xs text-muted-foreground">{format(new Date(exam.startedAt), "PPP p")}</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="font-bold text-foreground">{Math.round(exam.accuracy)}%</p>
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">Excellent</p>
-                        </div>
+            {/* Weak Topics ROI Grid */}
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                        <CardTitle>Focus Areas (ROI)</CardTitle>
+                        <CardDescription>Topics with highest potential impact on your score</CardDescription>
                     </div>
-                ))}
-                {completedExams.length === 0 && (
-                    <p className="py-4 text-center text-sm text-muted-foreground">No recent exams found.</p>
-                )}
-            </div>
+                    <button className="text-sm text-accent-primary hover:underline" onClick={() => router.push("/weak-topics")}>
+                        View All
+                    </button>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {displayWeakTopics.length > 0 ? displayWeakTopics.slice(0, 3).map((topic: any, i: number) => (
+                            <div key={i} className="group p-4 rounded-xl border border-border-subtle hover:border-warning/50 hover:bg-warning/5 transition-all cursor-pointer">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h4 className="font-semibold text-text-primary">{topic.topicName}</h4>
+                                    <Badge variant="warning">{topic.accuracy}% Acc</Badge>
+                                </div>
+                                <div className="h-1.5 w-full bg-border-subtle rounded-full overflow-hidden mb-3">
+                                    <div className="h-full bg-warning transition-all" style={{ width: `${topic.accuracy}%` }} />
+                                </div>
+                                <p className="text-xs text-text-secondary">
+                                    Fixing this adds <strong className="text-text-primary">~{100 - topic.accuracy} pts</strong> potential.
+                                </p>
+                            </div>
+                         )) : (
+                            <div className="col-span-3 text-center py-12 text-text-muted">
+                                <Trophy className="mx-auto h-8 w-8 mb-2 opacity-20" />
+                                <p>Great job! No critical weak topics detected.</p>
+                            </div>
+                         )}
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     </DashboardLayout>
   );

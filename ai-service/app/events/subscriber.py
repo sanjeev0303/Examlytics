@@ -9,6 +9,8 @@ load_dotenv()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 async def listen_to_redis():
+    r = None
+    pubsub = None
     try:
         r = redis.from_url(REDIS_URL)
         pubsub = r.pubsub()
@@ -28,5 +30,14 @@ async def listen_to_redis():
                     print(f"🧠 AI Service: Analyzing long-term stats for user {user_id} with score {score}")
                 except Exception as e:
                     print(f"❌ AI Service: Error processing message: {e}")
+    except asyncio.CancelledError:
+        print("🔄 AI Service: Redis listener shutting down gracefully...")
+        raise
     except Exception as e:
         print(f"❌ AI Service: Redis connection failed: {e}")
+    finally:
+        if pubsub:
+            await pubsub.unsubscribe("exam.submitted")
+            await pubsub.close()
+        if r:
+            await r.close()

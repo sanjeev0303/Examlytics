@@ -64,9 +64,13 @@ export default function ExamTakingClient({ examId }: ExamTakingClientProps) {
     setIsSubmitting(true);
     try {
         const token = await getToken();
+        // Calculate total time taken
+        const timeTaken = answers.reduce((acc, curr) => acc + (curr.timeSpent || 0), 0);
+
         await api.submitExam({
-            examId,
-            answers
+            sessionId: examId,
+            answers,
+            timeTaken
         }, {
             headers: { Authorization: `Bearer ${token}` }
         });

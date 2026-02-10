@@ -27,7 +27,8 @@ export function ExamRunnerWrapper({ questions, duration, sessionId, userId }: Ex
       if (userId) {
         headers["X-Clerk-User-ID"] = userId;
       }
-      return api.submitExam({ sessionId, answers }, { headers });
+      const timeTaken = answers.reduce((acc: any, curr: any) => acc + (curr.timeSpent || 0), 0);
+      return api.submitExam({ sessionId, answers, timeTaken }, { headers });
     },
     onSuccess: () => {
        router.replace(`/analysis/${sessionId}`);

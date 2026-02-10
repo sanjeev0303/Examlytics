@@ -1,0 +1,231 @@
+{
+  "timestamp": "2026-02-08T01:24:15+05:30",
+  "services": [
+    {
+      "name": "Go Server",
+      "url": "http://localhost:8000",
+      "phases": [
+        {
+          "name": "Warmup",
+          "virtual_users": 50,
+          "duration_seconds": 16.680120593,
+          "total_requests": 800,
+          "total_errors": 2082,
+          "error_rate_percent": 72.24149895905622,
+          "requests_per_second": 47.961283945137,
+          "latency": {
+            "p50_ms": 597,
+            "p95_ms": 3228,
+            "p99_ms": 5223,
+            "p999_ms": 7148,
+            "min_ms": 70,
+            "max_ms": 7148,
+            "avg_ms": 949
+          },
+          "error_breakdown": {
+            "HTTP_429": 2082
+          },
+          "system_metrics": {
+            "goroutines": 101,
+            "heap_alloc_mb": 3.8927993774414062,
+            "num_gc": 836
+          }
+        },
+        {
+          "name": "Normal Load",
+          "virtual_users": 500,
+          "duration_seconds": 15.073416549,
+          "total_requests": 0,
+          "total_errors": 66612,
+          "error_rate_percent": 100,
+          "requests_per_second": 0,
+          "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0,
+            "p999_ms": 0,
+            "min_ms": 0,
+            "max_ms": 0,
+            "avg_ms": 0
+          },
+          "error_breakdown": {
+            "HTTP_429": 66612
+          },
+          "system_metrics": {
+            "goroutines": 1001,
+            "heap_alloc_mb": 17.13025665283203,
+            "num_gc": 880
+          }
+        },
+        {
+          "name": "Peak Load",
+          "virtual_users": 2000,
+          "duration_seconds": 15.34115343,
+          "total_requests": 0,
+          "total_errors": 71305,
+          "error_rate_percent": 100,
+          "requests_per_second": 0,
+          "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0,
+            "p999_ms": 0,
+            "min_ms": 0,
+            "max_ms": 0,
+            "avg_ms": 0
+          },
+          "error_breakdown": {
+            "HTTP_429": 71305
+          },
+          "system_metrics": {
+            "goroutines": 4001,
+            "heap_alloc_mb": 46.88648986816406,
+            "num_gc": 893
+          }
+        },
+        {
+          "name": "Stress Test",
+          "virtual_users": 5000,
+          "duration_seconds": 15.998829065,
+          "total_requests": 0,
+          "total_errors": 55923,
+          "error_rate_percent": 100,
+          "requests_per_second": 0,
+          "latency": {
+            "p50_ms": 0,
+            "p95_ms": 0,
+            "p99_ms": 0,
+            "p999_ms": 0,
+            "min_ms": 0,
+            "max_ms": 0,
+            "avg_ms": 0
+          },
+          "error_breakdown": {
+            "HTTP_429": 55923
+          },
+          "system_metrics": {
+            "goroutines": 4001,
+            "heap_alloc_mb": 127.29264831542969,
+            "num_gc": 898
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Service",
+      "url": "http://localhost:8001",
+      "phases": [
+        {
+          "name": "Warmup",
+          "virtual_users": 10,
+          "duration_seconds": 20.399909097,
+          "total_requests": 1289,
+          "total_errors": 0,
+          "error_rate_percent": 0,
+          "requests_per_second": 63.18655607095621,
+          "latency": {
+            "p50_ms": 46,
+            "p95_ms": 476,
+            "p99_ms": 529,
+            "p999_ms": 541,
+            "min_ms": 7,
+            "max_ms": 670,
+            "avg_ms": 156
+          },
+          "error_breakdown": {},
+          "system_metrics": {
+            "goroutines": 3997,
+            "heap_alloc_mb": 134.56966400146484,
+            "num_gc": 898
+          }
+        },
+        {
+          "name": "Normal Load",
+          "virtual_users": 50,
+          "duration_seconds": 20.506104911,
+          "total_requests": 6103,
+          "total_errors": 0,
+          "error_rate_percent": 0,
+          "requests_per_second": 297.6186860687616,
+          "latency": {
+            "p50_ms": 49,
+            "p95_ms": 488,
+            "p99_ms": 535,
+            "p999_ms": 755,
+            "min_ms": 1,
+            "max_ms": 907,
+            "avg_ms": 165
+          },
+          "error_breakdown": {},
+          "system_metrics": {
+            "goroutines": 4001,
+            "heap_alloc_mb": 42.090553283691406,
+            "num_gc": 899
+          }
+        },
+        {
+          "name": "Peak Load",
+          "virtual_users": 100,
+          "duration_seconds": 20.493584266,
+          "total_requests": 12196,
+          "total_errors": 0,
+          "error_rate_percent": 0,
+          "requests_per_second": 595.1130774246185,
+          "latency": {
+            "p50_ms": 50,
+            "p95_ms": 485,
+            "p99_ms": 530,
+            "p999_ms": 541,
+            "min_ms": 1,
+            "max_ms": 546,
+            "avg_ms": 165
+          },
+          "error_breakdown": {},
+          "system_metrics": {
+            "goroutines": 75,
+            "heap_alloc_mb": 15.869964599609375,
+            "num_gc": 906
+          }
+        },
+        {
+          "name": "Stress Test",
+          "virtual_users": 200,
+          "duration_seconds": 20.493922286,
+          "total_requests": 21127,
+          "total_errors": 0,
+          "error_rate_percent": 0,
+          "requests_per_second": 1030.8909980805613,
+          "latency": {
+            "p50_ms": 103,
+            "p95_ms": 517,
+            "p99_ms": 600,
+            "p999_ms": 959,
+            "min_ms": 2,
+            "max_ms": 1100,
+            "avg_ms": 190
+          },
+          "error_breakdown": {},
+          "system_metrics": {
+            "goroutines": 255,
+            "heap_alloc_mb": 18.566368103027344,
+            "num_gc": 918
+          }
+        }
+      ]
+    }
+  ],
+  "recommended_capacity": {
+    "server": {
+      "safe_capacity_users": 0,
+      "max_capacity_users": 0,
+      "breaking_point_users": 50,
+      "recommendation": "Safe capacity: 0 users, Max capacity: 0 users"
+    },
+    "ai_service": {
+      "safe_capacity_users": 0,
+      "max_capacity_users": 100,
+      "breaking_point_users": 200,
+      "recommendation": "Safe capacity: 0 users, Max capacity: 100 users"
+    }
+  }
+}

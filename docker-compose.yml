@@ -33,7 +33,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./server-go:/app
+      - ./server:/app
       - go-modules:/go/pkg/mod
     environment:
       - CGO_ENABLED=0

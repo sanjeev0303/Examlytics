@@ -11,6 +11,9 @@ export const ExamService = {
     difficulty: string;
     questionCount: number;
     topicId: string;
+    language?: string;
+    jobCategory?: string;
+    subjects?: string[];
     examId?: string;
   }, options?: RequestInit) =>
     ApiClient.fetchWithAuth("/exams/start", {
@@ -30,4 +33,7 @@ export const ExamService = {
     ApiClient.fetchWithAuth(`/exams/session/${sessionId}`, options),
 
   getHistory: (options?: RequestInit) => ApiClient.fetchWithAuth("/exams/history", options),
+
+  getExamStatus: (jobId: string, options?: RequestInit) =>
+    ApiClient.fetchWithAuth(`/exams/status/${jobId}`, options),
 };

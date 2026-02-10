@@ -100,7 +100,7 @@ export function AnalysisView({ initialResult, sessionId, token }: AnalysisViewPr
                         <p className="text-gray-500 text-center py-4">No weak topics identified. Great job!</p>
                     )}
                     {(result.weakTopics || []).length > 0 && !isAnalyzing && (
-                        <AnalysisActionButtons weakTopicId={(result.weakTopics || [])[0]?.topicId} />
+                        <AnalysisActionButtons weakTopics={result.weakTopics} />
                     )}
                 </CardContent>
             </Card>
