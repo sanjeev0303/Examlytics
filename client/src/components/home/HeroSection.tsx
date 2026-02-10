@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight, Play, TrendingUp, Brain, Target } from "lucide-react";
 import { AntigravityButton } from "@/components/ui/AntigravityButton";
@@ -13,10 +14,12 @@ export const HeroSection = () => {
       {/* Background Particles & Grid */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-black/60 z-10" /> {/* Overlay for readability */}
-        <img
+        <Image
           src="/landing_background.png"
           alt="Antigravity Background"
-          className="w-full h-full object-cover opacity-60"
+          fill
+          priority
+          className="object-cover opacity-60"
         />
       </div>
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[100px_100px] mask-[radial-gradient(ellipse_60%_60%_at_50%_50%,black,transparent)] z-0 pointer-events-none" />

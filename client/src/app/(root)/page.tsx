@@ -1,22 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { useUser, useAuth, UserButton } from "@clerk/nextjs";
-import { LoaderSpinner } from "@/components/global/loader";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { UserData } from "@/types";
-// import Navbar from "./_components/navbar";
 import { HeroSection } from "@/components/home/HeroSection";
-import { ProblemSolutionSection } from "@/components/home/ProblemSolutionSection";
-import { ExamEngineSection } from "@/components/home/ExamEngineSection";
-import { AnalyticsSection } from "@/components/home/AnalyticsSection";
-import { WeakTopicSection } from "@/components/home/WeakTopicSection";
-import { CodingPrepSection } from "@/components/home/CodingPrepSection";
-import { MultiExamSection } from "@/components/home/MultiExamSection";
-import { HowItWorksSection } from "@/components/home/HowItWorksSection";
-import { AdminSection } from "@/components/home/AdminSection";
-import { FinalCTASection } from "@/components/home/FinalCTASection";
-import Footer from "@/components/home/Footer";
 import Navbar from "@/components/home/navbar";
+import Footer from "@/components/home/Footer";
+
+const ProblemSolutionSection = dynamic(() => import("@/components/home/ProblemSolutionSection").then(mod => mod.ProblemSolutionSection));
+const ExamEngineSection = dynamic(() => import("@/components/home/ExamEngineSection").then(mod => mod.ExamEngineSection));
+const AnalyticsSection = dynamic(() => import("@/components/home/AnalyticsSection").then(mod => mod.AnalyticsSection));
+const WeakTopicSection = dynamic(() => import("@/components/home/WeakTopicSection").then(mod => mod.WeakTopicSection));
+const CodingPrepSection = dynamic(() => import("@/components/home/CodingPrepSection").then(mod => mod.CodingPrepSection));
+const MultiExamSection = dynamic(() => import("@/components/home/MultiExamSection").then(mod => mod.MultiExamSection));
+const HowItWorksSection = dynamic(() => import("@/components/home/HowItWorksSection").then(mod => mod.HowItWorksSection));
+const AdminSection = dynamic(() => import("@/components/home/AdminSection").then(mod => mod.AdminSection));
+const FinalCTASection = dynamic(() => import("@/components/home/FinalCTASection").then(mod => mod.FinalCTASection));
 
 export default function Home() {
   const { user, isLoaded, isSignedIn } = useUser();
@@ -64,9 +64,7 @@ export default function Home() {
     syncUser();
   }, [user, isLoaded, isSignedIn, getToken]);
 
-  if (!isLoaded) {
-    return <LoaderSpinner />;
-  }
+
 
   return (
     <>
