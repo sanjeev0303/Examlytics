@@ -107,7 +107,11 @@ func (r *Router) Setup() *gin.Engine {
 
 	// 2. CORS for browser access
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:3000"} // Allow client origin
+	corsConfig.AllowOrigins = []string{
+		"http://localhost:3000",
+		"https://examlytics-2cez.vercel.app",
+		"https://examlytics-client.vercel.app",
+	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Clerk-User-ID"}
 	corsConfig.AllowCredentials = true
