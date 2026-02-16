@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, useUser } from "@clerk/nextjs";
+
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Check, ArrowRight, ArrowLeft, BrainCircuit, Code2, Calculator, GraduationCap, Clock, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,8 +24,6 @@ const STEPS = [
 
 export function ExamConfigForm({ initialType = "JOB", initialTopic = "" }: ExamConfigFormProps) {
   const router = useRouter();
-  const { getToken } = useAuth();
-  const { user } = useUser();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -41,15 +38,7 @@ export function ExamConfigForm({ initialType = "JOB", initialTopic = "" }: ExamC
   const handleStart = async () => {
      setLoading(true);
      try {
-       const token = await getToken();
-       if (!token) throw new Error("Not authenticated");
-       const headers: Record<string, string> = {
-         Authorization: `Bearer ${token}`
-       };
-       if (user?.id) {
-         headers["X-Clerk-User-ID"] = user.id;
-       }
-       const session = await api.startExam(config, { headers });
+       const session = await api.startExam(config);
        router.push(`/exam/${session.jobId}`);
      } catch (error) {
        console.error(error);

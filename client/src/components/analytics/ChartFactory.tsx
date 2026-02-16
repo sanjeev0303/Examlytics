@@ -19,7 +19,7 @@ export type ChartType = "area" | "bar" | "line";
 
 interface ChartFactoryProps {
   type: ChartType;
-  data: any[];
+  data: Record<string, unknown>[];
   xKey: string;
   dataKey: string;
   color?: string;

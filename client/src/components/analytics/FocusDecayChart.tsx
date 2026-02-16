@@ -17,7 +17,13 @@ interface FocusDecayChartProps {
   }[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-background/95 border border-border/50 shadow-xl rounded-xl p-3 backdrop-blur-sm">

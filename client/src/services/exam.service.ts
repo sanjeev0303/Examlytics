@@ -22,7 +22,7 @@ export const ExamService = {
       body: JSON.stringify(data),
     }),
 
-  submit: (data: { sessionId: string; answers: any; timeTaken: number }, options?: RequestInit) =>
+  submit: (data: { sessionId: string; answers: { questionId: string; answer: string; timeSpent: number }[]; timeTaken: number }, options?: RequestInit) =>
     ApiClient.fetchWithAuth("/exams/submit", {
       ...options,
       method: "POST",

@@ -5,11 +5,13 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Trophy, ChevronRight, ExternalLink, PlayCircle, ArrowRight } from "lucide-react";
+import { Clock, PlayCircle, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { ExamHistoryItem } from "@/types";
+
 interface HistoryItemProps {
-  session: any;
+  session: ExamHistoryItem;
   style?: React.CSSProperties; // Passed by react-window if needed, but we handle it in parent wrapper mostly
 }
 

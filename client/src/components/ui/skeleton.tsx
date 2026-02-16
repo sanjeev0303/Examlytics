@@ -24,7 +24,7 @@ export function CardSkeleton() {
 
 export function ChartSkeleton() {
   return (
-    <div className="h-[340px] w-full animate-pulse bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+    <div className="h-[430px] w-full animate-pulse bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
       <div className="text-gray-400 text-sm">Loading chart...</div>
     </div>
   );

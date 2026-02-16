@@ -1,7 +1,7 @@
 import { ApiClient } from "./api.client";
 
 export const UserService = {
-  onboard: (data: { email: string; name: string; role: string; examTypes: string[] }, options?: RequestInit) =>
+  onboard: (data: { targetGoal: string; preferredTopics: string[] }, options?: RequestInit) =>
     ApiClient.fetchWithAuth("/users/onboarding", {
       ...options,
       method: "POST",

@@ -17,6 +17,9 @@ export const FloatingElement = ({
   delay = 0,
   depth = 1,
 }: FloatingElementProps) => {
+  // eslint-disable-next-line react-hooks/purity
+  const duration = React.useMemo(() => 5 + Math.random() * 2, []);
+
   return (
     <motion.div
       animate={{
@@ -24,13 +27,13 @@ export const FloatingElement = ({
         rotate: [0, 1 * depth, -1 * depth, 0],
       }}
       transition={{
-        duration: 5 + Math.random() * 2,
+        duration,
         repeat: Infinity,
         repeatType: "reverse",
         ease: "easeInOut",
         delay: delay,
       }}
-      className={cn("absolute", className)}
+      className={cn("absolute will-change-transform", className)}
     >
       {children}
     </motion.div>

@@ -1,0 +1,18 @@
+# Development Dockerfile
+FROM golang:1.24-alpine
+
+# Install git and air for hot reloading
+RUN apk add --no-cache git && \
+    go install github.com/air-verse/air@v1.61.1
+
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Run air for hot reloading
+CMD ["air"]

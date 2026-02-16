@@ -18,8 +18,8 @@ const (
 // User represents the user domain model
 type User struct {
 	ID         string          `json:"id" gorm:"type:uuid;primaryKey"`
-	ClerkID    string          `json:"clerkId" gorm:"column:clerk_id;uniqueIndex;not null"`
 	Email      string          `json:"email" gorm:"uniqueIndex;not null"`
+	Password   string          `json:"-" gorm:"column:password;not null"`
 	FirstName  *string         `json:"firstName,omitempty" gorm:"column:first_name"`
 	LastName   *string         `json:"lastName,omitempty" gorm:"column:last_name"`
 	ImageURL   *string         `json:"imageUrl,omitempty" gorm:"column:image_url"`

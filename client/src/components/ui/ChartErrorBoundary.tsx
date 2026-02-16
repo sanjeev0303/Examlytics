@@ -45,9 +45,7 @@ export class ChartErrorBoundary extends Component<Props, State> {
           <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
             Visualization Failed
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] mb-4">
-            We couldn't render this chart. It might be a momentary data issue.
-          </p>
+          <p className="text-zinc-500 text-sm mt-1">We couldn&apos;t load this visualization right now.</p>
           <Button
             variant="outline"
             size="sm"

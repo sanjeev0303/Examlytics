@@ -9,7 +9,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { format } from "date-fns";
 
 interface AccuracyTrendChartProps {
   data: {
@@ -19,7 +18,13 @@ interface AccuracyTrendChartProps {
   }[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const score = payload[0].value;
     // Calculate delta if possible, need previous data point.

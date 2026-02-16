@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAppSelector } from "@/redux/hooks";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -12,14 +12,20 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+interface WeakTopic {
+  topicId: string;
+  topicName?: string;
+  accuracy: number;
+}
+
 interface AnalysisActionButtonsProps {
-  weakTopics?: any[];
+  weakTopics?: WeakTopic[];
   mode?: "improve" | "dashboard";
 }
 
 export function AnalysisActionButtons({ weakTopics = [], mode = "improve" }: AnalysisActionButtonsProps) {
   const router = useRouter();
-  const { getToken } = useAuth();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [questionCount, setQuestionCount] = useState([10]);
@@ -36,8 +42,7 @@ export function AnalysisActionButtons({ weakTopics = [], mode = "improve" }: Ana
   const handleStartExam = async () => {
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) {
+      if (!isAuthenticated) {
         toast.error("Authentication required");
         setLoading(false);
         return;
@@ -55,9 +60,7 @@ export function AnalysisActionButtons({ weakTopics = [], mode = "improve" }: Ana
         topicId: topicIdentifier,
       };
 
-      const res = await api.startExam(payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.startExam(payload);
 
       if (res && res.jobId) {
         const jobId = res.jobId;
@@ -67,9 +70,7 @@ export function AnalysisActionButtons({ weakTopics = [], mode = "improve" }: Ana
         // Poll for completion
         const pollInterval = setInterval(async () => {
           try {
-            const statusRes = await api.getExamStatus(jobId, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            const statusRes = await api.getExamStatus(jobId);
 
             if (statusRes.status === "READY") {
               clearInterval(pollInterval);

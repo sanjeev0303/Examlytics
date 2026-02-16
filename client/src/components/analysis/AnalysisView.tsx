@@ -1,33 +1,61 @@
 "use client";
 
-import React, { useEffect } from "react";
+import dynamic from "next/dynamic";
+import React, { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { RadialChart } from "@/components/analytics/RadialChart";
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle, XCircle, HelpCircle, Clock, Loader2 } from "lucide-react";
 import { AnalysisActionButtons } from "@/components/analysis/AnalysisActionButtons";
-import { useRouter } from "next/navigation";
+import { ChartSkeleton } from "@/components/ui/skeleton";
+
+const RadialChart = dynamic(() => import("@/components/analytics/RadialChart").then(mod => mod.RadialChart), {
+    ssr: false,
+    loading: () => <ChartSkeleton />
+});
+
+interface TopicInfo {
+    topicId: string;
+    topicName?: string;
+    accuracy: number;
+    severity: string;
+}
+
+interface QuestionReview {
+    text: string;
+    userAnswer?: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    explanation?: string;
+    timeSpent?: number;
+    type: string;
+}
+
+interface AnalysisResult {
+    improvementRecommendation: string;
+    weakTopics: TopicInfo[];
+    correctCount: number;
+    totalQuestions: number;
+    timeTaken: number;
+    questions: QuestionReview[];
+}
 
 interface AnalysisViewProps {
-  initialResult: any;
+  initialResult: AnalysisResult;
   sessionId: string;
   token: string;
 }
 
 export function AnalysisView({ initialResult, sessionId, token }: AnalysisViewProps) {
-  const router = useRouter();
-
   const { data: result, isFetching } = useQuery({
     queryKey: ["exam-analysis", sessionId],
     queryFn: async () => {
       const headers = { Authorization: `Bearer ${token}` };
-      return api.getExamSession(sessionId, { headers });
+      return api.getExamSession(sessionId, { headers }) as Promise<AnalysisResult>;
     },
     initialData: initialResult,
     refetchInterval: (query) => {
-      const data = query.state.data;
+      const data = query.state.data as AnalysisResult | undefined;
       // Poll if analysis is still in progress or contains generic/uncategorized topics
       if (
         data?.improvementRecommendation === "Analysis in progress..." ||
@@ -54,7 +82,9 @@ export function AnalysisView({ initialResult, sessionId, token }: AnalysisViewPr
        </div>
 
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <RadialChart score={result.correctCount} total={result.totalQuestions} title="Overall Score" description="Questions Correct" />
+            <Suspense fallback={<ChartSkeleton />}>
+                <RadialChart score={result.correctCount} total={result.totalQuestions} title="Overall Score" description="Questions Correct" />
+            </Suspense>
 
             <Card className="flex flex-col justify-center items-center text-center p-6">
                 <div className="text-4xl font-bold text-gray-900 mb-2">{Math.floor(result.timeTaken / 60)}m {result.timeTaken % 60}s</div>
@@ -83,10 +113,9 @@ export function AnalysisView({ initialResult, sessionId, token }: AnalysisViewPr
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {(result.weakTopics || []).length > 0 ? (
-                        (result.weakTopics || []).map((topic: any, idx: number) => (
+                        (result.weakTopics || []).map((topic: TopicInfo, idx: number) => (
                             <div key={idx} className="flex justify-between items-center p-4 bg-rose-50 rounded-lg border border-rose-100">
                                 <div>
-                                    {/* PRIORITIZE Displaying TopicName from Backend */}
                                     <div className="font-semibold text-gray-800">{topic.topicName && topic.topicName !== "Unknown" ? topic.topicName : (topic.topicId || "Uncategorized")}</div>
                                     <div className="text-xs text-rose-600 font-medium mt-1">{topic.severity} SEVERITY</div>
                                 </div>
@@ -125,7 +154,7 @@ export function AnalysisView({ initialResult, sessionId, token }: AnalysisViewPr
        <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900 border-b pb-2">Detailed Review</h2>
             <div className="grid grid-cols-1 gap-6">
-                {(result.questions || []).map((q: any, idx: number) => {
+                {(result.questions || []).map((q: QuestionReview, idx: number) => {
                     const isCorrect = q.isCorrect;
                     return (
                         <Card key={idx} className={`border-l-4 ${isCorrect ? "border-l-green-500" : "border-l-red-500"}`}>

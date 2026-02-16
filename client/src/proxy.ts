@@ -1,25 +1,44 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-// Define public routes - home page and sign-in/sign-up
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/sign-in(.*)',
-  '/sign-up(.*)',
-]);
+export function proxy(request: NextRequest) {
+  const token = request.cookies.get('access_token')?.value
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')
+  const isProtected =
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/analytics') ||
+    request.nextUrl.pathname.startsWith('/history') ||
+    request.nextUrl.pathname.startsWith('/exams') ||
+    request.nextUrl.pathname.startsWith('/settings') ||
+    request.nextUrl.pathname.startsWith('/onboarding') ||
+    request.nextUrl.pathname.startsWith('/analysis') ||
+    request.nextUrl.pathname.startsWith('/exam') ||
+    request.nextUrl.pathname.startsWith('/weak-topics')
 
-
-export default clerkMiddleware(async (auth, request) => {
-  // Protect all routes except public ones
-  if (!isPublicRoute(request)) {
-    await auth.protect();
+  if (isProtected && !token) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
-});
+
+  if (isAuthPage && token) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  return NextResponse.next()
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    '/dashboard/:path*',
+    '/analytics/:path*',
+    '/history/:path*',
+    '/exams/:path*',
+    '/settings/:path*',
+    '/onboarding/:path*',
+    '/analysis/:path*',
+    '/exam/:path*',
+    '/weak-topics/:path*',
+    '/admin/:path*',
+    '/login',
+    '/register',
   ],
-};
+}

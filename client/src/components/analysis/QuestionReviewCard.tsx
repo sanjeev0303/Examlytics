@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, BrainCircuit } from "lucide-react";
+import { CheckCircle2, XCircle, ChevronDown, ChevronUp, BrainCircuit } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ interface QuestionReviewProps {
     id: string;
     text: string;
     options: string[];
-    correctOption: string; // This might need to come from backend
+    correctAnswer: string;
     explanation?: string;
   };
   userAnswer?: string;
@@ -23,10 +23,10 @@ interface QuestionReviewProps {
 export function QuestionReviewCard({ question, userAnswer, timeTaken, index }: QuestionReviewProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Note: Backend needs to provide correctOption.
+  // Note: Backend needs to provide correctAnswer.
   // ...
 
-  const isCorrect = userAnswer === question.correctOption;
+  const isCorrect = userAnswer === question.correctAnswer;
   const isSkipped = !userAnswer;
 
   const formatReviewTime = (seconds: number) => {
@@ -43,7 +43,6 @@ export function QuestionReviewCard({ question, userAnswer, timeTaken, index }: Q
       <CardHeader className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-             {/* ... existing index circle ... */}
              <div className={cn(
                "flex items-center justify-center w-8 h-8 rounded-full shrink-0 font-bold text-sm",
                 isCorrect ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
@@ -61,7 +60,6 @@ export function QuestionReviewCard({ question, userAnswer, timeTaken, index }: Q
                     {isSkipped && <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-900/20">Skipped</Badge>}
                     {!isCorrect && !isSkipped && <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50 dark:bg-red-900/20">Incorrect</Badge>}
                   </div>
-                  {/* Time Taken Badge */}
                   {timeTaken !== undefined && (
                       <span className="text-xs text-muted-foreground font-mono bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700">
                           {formatReviewTime(timeTaken)}
@@ -77,7 +75,6 @@ export function QuestionReviewCard({ question, userAnswer, timeTaken, index }: Q
         </div>
       </CardHeader>
 
-      {/* ... CardContent ... */}
       {isOpen && (
         <CardContent className="p-6 pt-2 border-t bg-gray-50/50 dark:bg-zinc-900/30">
             <div className="mb-6">
@@ -87,7 +84,7 @@ export function QuestionReviewCard({ question, userAnswer, timeTaken, index }: Q
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                {question.options.map((option, idx) => {
                    const isSelected = userAnswer === option;
-                   const isCorrectOption = question.correctOption === option;
+                   const isCorrectOption = question.correctAnswer === option;
 
                    let variantClass = "border-gray-200 dark:border-zinc-700";
                    let icon = null;

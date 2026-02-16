@@ -3,45 +3,41 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { ExamRunner } from "./ExamRunner";
+import { ExamRunner, Question } from "./ExamRunner";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAuth } from "@clerk/nextjs";
 
 interface ExamTakingClientProps {
   examId: string;
 }
 
+interface ExamData {
+    questions: Question[];
+    duration: number;
+    exam?: {
+        title: string;
+    };
+    [key: string]: unknown;
+}
+
 export default function ExamTakingClient({ examId }: ExamTakingClientProps) {
   const router = useRouter();
-  const { getToken } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [examData, setExamData] = useState<any>(null);
+  const [examData, setExamData] = useState<ExamData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const token = await getToken();
-        if (!token) {
-            setError("Authentication required");
-            setLoading(false);
-            return;
-        }
-
         // Fetch Exam Session Details
-        // We assume the API returns { exam: { title, ... }, questions: [], duration: 3600 }
-        // Adjust based on actual API response if needed.
-        // If the API endpoint is different, update api.ts
-        const data = await api.getExamSession(examId, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const data = await api.getExamSession(examId);
 
         // Map backend questions to frontend format if necessary
-        const mappedQuestions = (data.questions || []).map((q: any) => ({
+        // Map backend questions to frontend format if necessary
+        const mappedQuestions = (data.questions || []).map((q: Record<string, unknown>) => ({
             id: q.id,
             text: q.questionText || q.text, // Handle potential naming differences
             options: q.options || [],
@@ -49,21 +45,21 @@ export default function ExamTakingClient({ examId }: ExamTakingClientProps) {
         }));
 
         setExamData({ ...data, questions: mappedQuestions });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to load exam session.";
         console.error("Failed to load exam:", err);
-        setError(err.message || "Failed to load exam session.");
+        setError(message);
       } finally {
         setLoading(false);
       }
     };
 
     fetchSession();
-  }, [examId, getToken]);
+  }, [examId]);
 
   const handleExamSubmit = async (answers: { questionId: string; answer: string; timeSpent: number }[]) => {
     setIsSubmitting(true);
     try {
-        const token = await getToken();
         // Calculate total time taken
         const timeTaken = answers.reduce((acc, curr) => acc + (curr.timeSpent || 0), 0);
 
@@ -71,15 +67,14 @@ export default function ExamTakingClient({ examId }: ExamTakingClientProps) {
             sessionId: examId,
             answers,
             timeTaken
-        }, {
-            headers: { Authorization: `Bearer ${token}` }
         });
 
         toast.success("Exam submitted successfully!");
         router.push(`/exams/${examId}/results`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "Please try again.";
         toast.error("Submission failed", {
-            description: err.message || "Please try again."
+            description: errorMessage
         });
         setIsSubmitting(false);
     }

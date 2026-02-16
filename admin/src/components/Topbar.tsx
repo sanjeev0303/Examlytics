@@ -1,7 +1,6 @@
 "use client";
 
 import { Bell, Search } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
 import { MobileSidebar } from "@/components/MobileSidebar";
 
 export const Topbar = () => {

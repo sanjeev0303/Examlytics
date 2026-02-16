@@ -1,0 +1,23 @@
+# Development Dockerfile for Next.js
+FROM node:20-slim
+
+# Create app directory with correct ownership
+RUN mkdir -p /app && chown -R node:node /app
+WORKDIR /app
+
+# Copy package files with ownership
+COPY --chown=node:node package.json package-lock.json ./
+
+# Update npm as root
+RUN npm install -g npm@latest
+
+# Switch to non-root user before installing
+USER node
+RUN npm ci
+
+# Copy source code with ownership
+COPY --chown=node:node . .
+
+# Expose port and start
+EXPOSE 3000
+CMD ["npm", "run", "dev"]

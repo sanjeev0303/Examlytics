@@ -26,19 +26,13 @@ func NewAnalyticsHandler(analyticsService service.AnalyticsService, userRepo rep
 // GetLearningCurve returns learning curve data for graphs
 // GET /analytics/learning-curve
 func (h *AnalyticsHandler) GetLearningCurve(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	response, err := h.analyticsService.GetLearningCurve(c.Request.Context(), user.ID)
+	response, err := h.analyticsService.GetLearningCurve(c.Request.Context(), userID)
 	if err != nil {
 		logger.Errorf("Failed to get learning curve: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get learning curve"})
@@ -51,8 +45,8 @@ func (h *AnalyticsHandler) GetLearningCurve(c *gin.Context) {
 // GetTopicCurve returns mastery progression for a specific topic
 // GET /analytics/topic-curve/:topic
 func (h *AnalyticsHandler) GetTopicCurve(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -63,13 +57,7 @@ func (h *AnalyticsHandler) GetTopicCurve(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	response, err := h.analyticsService.GetTopicCurve(c.Request.Context(), user.ID, topic)
+	response, err := h.analyticsService.GetTopicCurve(c.Request.Context(), userID, topic)
 	if err != nil {
 		logger.Errorf("Failed to get topic curve: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get topic curve"})
@@ -82,19 +70,13 @@ func (h *AnalyticsHandler) GetTopicCurve(c *gin.Context) {
 // GetInterviewReadiness returns the interview readiness score
 // GET /analytics/readiness-score
 func (h *AnalyticsHandler) GetInterviewReadiness(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	response, err := h.analyticsService.GetInterviewReadiness(c.Request.Context(), user.ID)
+	response, err := h.analyticsService.GetInterviewReadiness(c.Request.Context(), userID)
 	if err != nil {
 		logger.Errorf("Failed to get interview readiness: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get interview readiness"})
@@ -107,19 +89,13 @@ func (h *AnalyticsHandler) GetInterviewReadiness(c *gin.Context) {
 // GetDueTopics returns topics due for spaced repetition review
 // GET /analytics/due-topics
 func (h *AnalyticsHandler) GetDueTopics(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	response, err := h.analyticsService.GetDueTopics(c.Request.Context(), user.ID)
+	response, err := h.analyticsService.GetDueTopics(c.Request.Context(), userID)
 	if err != nil {
 		logger.Errorf("Failed to get due topics: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get due topics"})
@@ -132,26 +108,20 @@ func (h *AnalyticsHandler) GetDueTopics(c *gin.Context) {
 // RecalculateReadiness triggers IRS recalculation
 // POST /analytics/recalculate-readiness
 func (h *AnalyticsHandler) RecalculateReadiness(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	if err := h.analyticsService.RecalculateReadiness(c.Request.Context(), user.ID); err != nil {
+	if err := h.analyticsService.RecalculateReadiness(c.Request.Context(), userID); err != nil {
 		logger.Errorf("Failed to recalculate readiness: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to recalculate readiness"})
 		return
 	}
 
 	// Return the updated score
-	response, err := h.analyticsService.GetInterviewReadiness(c.Request.Context(), user.ID)
+	response, err := h.analyticsService.GetInterviewReadiness(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated readiness"})
 		return
@@ -163,19 +133,13 @@ func (h *AnalyticsHandler) RecalculateReadiness(c *gin.Context) {
 // GetStreakData returns user activity streak information
 // GET /analytics/streaks
 func (h *AnalyticsHandler) GetStreakData(c *gin.Context) {
-	clerkID, exists := c.Get("clerkId")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.userRepo.FindByClerkID(c.Request.Context(), clerkID.(string))
-	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	response, err := h.analyticsService.GetStreakData(c.Request.Context(), user.ID)
+	response, err := h.analyticsService.GetStreakData(c.Request.Context(), userID)
 	if err != nil {
 		logger.Errorf("Failed to get streak data: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get streak data"})

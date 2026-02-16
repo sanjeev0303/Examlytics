@@ -3,33 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { useAuth, useUser } from "@clerk/nextjs";
 
 export function ExamGenerationLoader({ sessionId }: { sessionId: string }) {
   const router = useRouter();
-  const { getToken } = useAuth();
-  const { user } = useUser();
+  /* Removed Clerk hooks */
   const [error, setError] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line prefer-const
     let intervalId: NodeJS.Timeout;
 
     const checkStatus = async () => {
       if (transitioning) return;
 
       try {
-        const token = await getToken();
-        if (!token) return;
-
-        const headers: Record<string, string> = {
-          Authorization: `Bearer ${token}`
-        };
-        if (user?.id) {
-            headers["X-Clerk-User-ID"] = user.id;
-        }
-
-        const session = await api.getExamSession(sessionId, { headers });
+        const session = await api.getExamSession(sessionId);
 
         if (session.status === "COMPLETED" || (session.questions && session.questions.length > 0)) {
            setTransitioning(true);
@@ -45,12 +34,12 @@ export function ExamGenerationLoader({ sessionId }: { sessionId: string }) {
     };
 
     // Initial check
-    checkStatus();
+    void checkStatus();
 
     intervalId = setInterval(checkStatus, 3000);
 
     return () => clearInterval(intervalId);
-  }, [sessionId, router, getToken, user?.id, transitioning]);
+  }, [sessionId, router, transitioning]);
 
   if (error) {
      return (

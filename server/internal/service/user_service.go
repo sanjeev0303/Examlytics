@@ -7,18 +7,18 @@ import (
 	"github.com/examlytics/server/internal/domain"
 	"github.com/examlytics/server/internal/dto"
 	"github.com/examlytics/server/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UserService defines the interface for user business logic
 type UserService interface {
 	CreateUser(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error)
+	Login(ctx context.Context, email, password string) (*domain.User, error)
+	GetUserProfile(ctx context.Context, userID string) (*domain.User, error)
 	GetUsers(ctx context.Context) ([]*domain.User, error)
-	GetUserByClerkID(ctx context.Context, clerkID string) (*domain.User, error)
-	GetUserRoleByClerkID(ctx context.Context, clerkID string) (*string, error)
-	SyncClerkUser(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error)
-	OnboardUser(ctx context.Context, clerkID string, req dto.OnboardingRequest) error
+	OnboardUser(ctx context.Context, userID string, req dto.OnboardingRequest) error
 	GetAdminStats(ctx context.Context) (*dto.AdminStatsResponse, error)
-	GetUserWeakTopics(ctx context.Context, clerkID string) ([]*domain.UserWeakTopic, error)
+	GetUserWeakTopics(ctx context.Context, userID string) ([]*domain.UserWeakTopic, error)
 	GetUserAIContext(ctx context.Context, userID string) (*domain.UserAIContext, error)
 }
 
@@ -35,7 +35,41 @@ func NewUserService(userRepo repository.UserRepository, examRepo repository.Exam
 
 // CreateUser creates a new user
 func (s *UserServiceImpl) CreateUser(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error) {
-	return s.userRepo.Create(ctx, data)
+	// Check if user already exists
+	existingUser, _ := s.userRepo.FindByEmail(ctx, data.Email)
+	if existingUser != nil {
+		return nil, errors.New("user already exists")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(data.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.userRepo.Create(ctx, data, string(hashedPassword))
+}
+
+// Login authenticates a user
+func (s *UserServiceImpl) Login(ctx context.Context, email, password string) (*domain.User, error) {
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("invalid credentials")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err != nil {
+		return nil, errors.New("invalid credentials")
+	}
+
+	return user, nil
+}
+
+// GetUserProfile retrieves user profile by ID
+func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID string) (*domain.User, error) {
+	return s.userRepo.FindByID(ctx, userID)
 }
 
 // GetUsers retrieves all users
@@ -43,32 +77,10 @@ func (s *UserServiceImpl) GetUsers(ctx context.Context) ([]*domain.User, error) 
 	return s.userRepo.FindAll(ctx)
 }
 
-// GetUserByClerkID retrieves a user by their Clerk ID
-func (s *UserServiceImpl) GetUserByClerkID(ctx context.Context, clerkID string) (*domain.User, error) {
-	return s.userRepo.FindByClerkID(ctx, clerkID)
-}
-
-// GetUserRoleByClerkID retrieves just the role for a user by Clerk ID
-func (s *UserServiceImpl) GetUserRoleByClerkID(ctx context.Context, clerkID string) (*string, error) {
-	user, err := s.userRepo.FindByClerkID(ctx, clerkID)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		return nil, nil
-	}
-	role := string(user.Role)
-	return &role, nil
-}
-
-func (s *UserServiceImpl) SyncClerkUser(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error) {
-	return s.userRepo.UpsertByClerkID(ctx, data)
-}
-
 // OnboardUser saves user preferences
-func (s *UserServiceImpl) OnboardUser(ctx context.Context, clerkID string, req dto.OnboardingRequest) error {
+func (s *UserServiceImpl) OnboardUser(ctx context.Context, userID string, req dto.OnboardingRequest) error {
 	// Find user first
-	user, err := s.userRepo.FindByClerkID(ctx, clerkID)
+	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -108,8 +120,8 @@ func (s *UserServiceImpl) GetAdminStats(ctx context.Context) (*dto.AdminStatsRes
 	}, nil
 }
 
-func (s *UserServiceImpl) GetUserWeakTopics(ctx context.Context, clerkID string) ([]*domain.UserWeakTopic, error) {
-	user, err := s.userRepo.FindByClerkID(ctx, clerkID)
+func (s *UserServiceImpl) GetUserWeakTopics(ctx context.Context, userID string) ([]*domain.UserWeakTopic, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

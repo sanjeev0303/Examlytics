@@ -1,10 +1,7 @@
-"use client";
-
-import React, { useRef } from "react";
-import { motion, useScroll, useTransform, HTMLMotionProps } from "framer-motion";
+import React from "react";
 import { cn } from "@/lib/utils";
 
-interface SectionWrapperProps extends HTMLMotionProps<"section"> {
+interface SectionWrapperProps extends React.HTMLAttributes<HTMLElement> {
   children: React.ReactNode;
   perspective?: boolean;
 }
@@ -15,23 +12,10 @@ export const SectionWrapper = ({
   perspective = false,
   ...props
 }: SectionWrapperProps) => {
-  const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-
-  const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.9, 1], [0, 1, 1, 0]);
-
   return (
-    <motion.section
-      ref={ref}
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: "-100px" }}
+    <section
       className={cn(
-        "relative w-full min-h-screen flex items-center justify-center py-20 px-6",
+        "relative w-full min-h-screen flex items-center justify-center py-20 px-6 overflow-hidden",
         perspective && "perspective-1000",
         className
       )}
@@ -41,8 +25,8 @@ export const SectionWrapper = ({
         {children}
       </div>
 
-      {/* Background Glow - Generic for all sections, can be overridden */}
+      {/* Background Glow - Generic for all sections */}
       <div className="absolute inset-0 bg-brand-deep/50 -z-10 pointer-events-none" />
-    </motion.section>
+    </section>
   );
 };

@@ -1,5 +1,6 @@
 services:
   ai-service:
+    container_name: ai-service
     build:
       context: ./ai-service
     ports:
@@ -13,8 +14,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 
-
   redis:
+    container_name: redis
     image: redis:alpine
     ports:
       - "6379:6379"
@@ -27,9 +28,11 @@ services:
       timeout: 5s
       retries: 5
 
-  server-go:
-    image: golang:1.24-alpine
-    working_dir: /app
+  server:
+    container_name: server
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
     ports:
       - "8000:8000"
     volumes:
@@ -38,19 +41,20 @@ services:
     environment:
       - CGO_ENABLED=0
       - REDIS_URL=redis://redis:6379/0
-    # Install air for hot reloading and run it
-    command: sh -c "go install github.com/air-verse/air@v1.61.1 && air"
 
   client:
-    image: node:20-slim
-    working_dir: /app
+    container_name: examlytics-client
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
     volumes:
       - ./client:/app
       - /app/node_modules
-    # Ensure dependencies are installed and run dev server
-    command: sh -c "npm install && npm run dev"
+    shm_size: '1gb'
+    environment:
+      - WATCHPACK_POLLING=true
 
 volumes:
   go-modules:

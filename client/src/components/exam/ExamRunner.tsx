@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition, memo } from "react";
+import React, { useState, useTransition, memo } from "react";
 import { useTimer } from "react-timer-hook";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Loader2, Flag, Clock, ChevronLeft, ChevronRight, CheckCircle2, Menu, X } from "lucide-react";
+import { Loader2, Flag, Clock, ChevronLeft, ChevronRight, CheckCircle2, Menu } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -17,7 +17,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-interface Question {
+export interface Question {
   id: string;
   text: string;
   options: string[];
@@ -205,7 +205,7 @@ export const ExamRunner = ({ questions = [], duration, onSubmit, isSubmitting = 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [times, setTimes] = useState<Record<string, number>>({});
-  const [lastQuestionChange, setLastQuestionChange] = useState(Date.now());
+  const [lastQuestionChange, setLastQuestionChange] = useState(() => Date.now());
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
   const [isPending, startTransition] = useTransition();
@@ -218,7 +218,6 @@ export const ExamRunner = ({ questions = [], duration, onSubmit, isSubmitting = 
     seconds,
     minutes,
     hours,
-    isRunning,
   } = useTimer({ expiryTimestamp, onExpire: () => handleSubmit(true) });
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -248,6 +247,7 @@ export const ExamRunner = ({ questions = [], duration, onSubmit, isSubmitting = 
 
   const handleNavigation = (index: number) => {
     // Record time for current question
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const spent = Math.floor((now - lastQuestionChange) / 1000);
     setTimes((prev) => ({
@@ -274,6 +274,7 @@ export const ExamRunner = ({ questions = [], duration, onSubmit, isSubmitting = 
     }
 
     // Finalize time for current question
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const spent = Math.floor((now - lastQuestionChange) / 1000);
     const finalTimes = {

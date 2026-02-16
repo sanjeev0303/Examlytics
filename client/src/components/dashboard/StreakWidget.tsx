@@ -8,7 +8,7 @@ interface StreakWidgetProps {
   streakData: {
       currentStreak: number;
       longestStreak: number;
-      activityCalendar: any[];
+      activityCalendar: { date: string; count: number; hasExams: boolean; }[];
   } | undefined;
 }
 
@@ -16,7 +16,7 @@ export function StreakWidget({ streakData }: StreakWidgetProps) {
   if (!streakData) return null;
 
   return (
-    <Card className="mt-4 border-l-4 border-l-orange-500 shadow-sm bg-card">
+    <Card className="mt-4 border-l-4 border-l-orange-500 shadow-sm bg-card h-[120px]">
         <CardContent className="p-4 flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

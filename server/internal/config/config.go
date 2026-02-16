@@ -14,7 +14,7 @@ type Config struct {
 	Env             string
 	LogLevel        string
 	DatabaseURL     string
-	ClerkSecretKey  string
+	JWTSecret       string
 	GeoIPDBPath     string
 	AIServiceURL    string
 	RedisURL        string
@@ -67,7 +67,7 @@ func Load() *Config {
 		Env:                         getEnv("ENV", envDefault),
 		LogLevel:                    getEnv("LOG_LEVEL", "info"),
 		DatabaseURL:                 getEnv("DATABASE_URL", ""),
-		ClerkSecretKey:              getEnv("CLERK_SECRET_KEY", ""),
+		JWTSecret:                   getEnv("JWT_SECRET", "default-secret-key-change-in-prod"),
 		GeoIPDBPath:                 getEnv("GEOIP_DB_PATH", "./data/GeoLite2-Country.mmdb"),
 		AIServiceURL:                getEnv("AI_SERVICE_URL", "http://localhost:8001"),
 		RedisURL:                    getEnv("REDIS_URL", ""),

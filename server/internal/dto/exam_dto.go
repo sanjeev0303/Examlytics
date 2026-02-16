@@ -86,14 +86,14 @@ type ExamSessionResponse struct {
 
 type ExamGenerationJob struct {
 	JobID     string           `json:"jobId"`
-	ClerkID   string           `json:"clerkId"`
+	UserID    string           `json:"userId"`
 	Request   StartExamRequest `json:"request"`
 	CreatedAt time.Time        `json:"createdAt"`
 }
 
 type ExamSubmissionJob struct {
 	JobID     string            `json:"jobId"`
-	ClerkID   string            `json:"clerkId"`
+	UserID    string            `json:"userId"`
 	Request   SubmitExamRequest `json:"request"`
 	CreatedAt time.Time         `json:"createdAt"`
 }

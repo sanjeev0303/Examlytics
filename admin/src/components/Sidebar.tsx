@@ -12,7 +12,9 @@ import {
   LogOut,
   AlertCircle
 } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { logoutUser } from "@/redux/slices/authSlice";
+import { useRouter } from "next/navigation";
 
 const routes = [
   {
@@ -67,6 +69,14 @@ const routes = [
 
 export const Sidebar = ({ className }: { className?: string }) => {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
+    router.push("/login");
+  };
 
   return (
     <div className={`space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white border-r border-gray-800 ${className}`}>
@@ -97,8 +107,19 @@ export const Sidebar = ({ className }: { className?: string }) => {
         </div>
       </div>
       <div className="px-3 py-2 border-t border-gray-800">
-          <div className="flex items-center p-3 w-full justify-start font-medium text-zinc-400">
-             <UserButton afterSignOutUrl="/sign-in" showName/>
+          <div className="flex items-center p-3 w-full justify-start font-medium text-zinc-400 gap-3">
+             <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                {user?.firstName?.[0] || "A"}
+             </div>
+             <div className="flex flex-col overflow-hidden">
+                  <span className="text-sm font-medium text-gray-200 truncate">{user?.firstName} {user?.lastName}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-xs text-red-500 hover:text-red-400 text-left mt-0.5"
+                  >
+                    Sign Out
+                  </button>
+             </div>
           </div>
       </div>
     </div>

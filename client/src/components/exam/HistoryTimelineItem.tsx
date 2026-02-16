@@ -3,14 +3,15 @@
 import { memo } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, CheckCircle2, AlertCircle, Play, ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Clock, Play, ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+import { ExamHistoryItem } from "@/types";
+
 interface HistoryTimelineItemProps {
-  session: any;
+  session: ExamHistoryItem;
   isLast?: boolean;
 }
 

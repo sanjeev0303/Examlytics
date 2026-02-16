@@ -12,12 +12,10 @@ import (
 
 // UserRepository defines interface for user data access
 type UserRepository interface {
-	Create(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error)
+	Create(ctx context.Context, data *dto.CreateUserRequest, hashedPassword string) (*domain.User, error)
 	FindAll(ctx context.Context) ([]*domain.User, error)
 	FindByID(ctx context.Context, id string) (*domain.User, error)
-	FindByClerkID(ctx context.Context, clerkID string) (*domain.User, error)
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
-	UpsertByClerkID(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) (*domain.User, error)
 	Delete(ctx context.Context, id string) error
 	SavePreferences(ctx context.Context, prefs *domain.UserPreference) error
@@ -38,10 +36,10 @@ func NewPostgresUserRepository(db *gorm.DB) UserRepository {
 }
 
 // Create creates a new user in the database
-func (r *PostgresUserRepository) Create(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error) {
+func (r *PostgresUserRepository) Create(ctx context.Context, data *dto.CreateUserRequest, hashedPassword string) (*domain.User, error) {
 	user := &domain.User{
-		ClerkID:   data.ClerkID,
 		Email:     data.Email,
+		Password:  hashedPassword,
 		FirstName: data.FirstName,
 		LastName:  data.LastName,
 		ImageURL:  data.ImageURL,
@@ -82,20 +80,6 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*doma
 	return &user, nil
 }
 
-// FindByClerkID retrieves a user by their Clerk ID
-func (r *PostgresUserRepository) FindByClerkID(ctx context.Context, clerkID string) (*domain.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	var user domain.User
-	if err := r.db.WithContext(ctx).Where("clerk_id = ?", clerkID).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &user, nil
-}
-
 // FindByEmail retrieves a user by their email
 func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -107,45 +91,6 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 		}
 		return nil, err
 	}
-	return &user, nil
-}
-
-// UpsertByClerkID creates or updates a user based on their Clerk ID
-func (r *PostgresUserRepository) UpsertByClerkID(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	var user domain.User
-
-	err := r.db.WithContext(ctx).Where("clerk_id = ?", data.ClerkID).First(&user).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		newUser := &domain.User{
-			ClerkID:   data.ClerkID,
-			Email:     data.Email,
-			FirstName: data.FirstName,
-			LastName:  data.LastName,
-			ImageURL:  data.ImageURL,
-			Role:      domain.RoleUser,
-		}
-		if err := r.db.WithContext(ctx).Create(newUser).Error; err != nil {
-			return nil, err
-		}
-		return newUser, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	user.Email = data.Email
-	user.FirstName = data.FirstName
-	user.LastName = data.LastName
-	user.ImageURL = data.ImageURL
-
-	if err := r.db.WithContext(ctx).Save(&user).Error; err != nil {
-		return nil, err
-	}
-
 	return &user, nil
 }
 

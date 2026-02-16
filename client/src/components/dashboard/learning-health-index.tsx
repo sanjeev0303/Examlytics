@@ -29,7 +29,7 @@ export function LearningHealthIndex({
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <Card className={cn("flex flex-col", className)}>
+    <Card className={cn("flex flex-col h-[230px]", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-medium text-text-secondary flex items-center gap-2">
           <Activity className="h-4 w-4" />

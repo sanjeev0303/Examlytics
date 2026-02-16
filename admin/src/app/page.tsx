@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser, useAuth, UserButton } from "@clerk/nextjs";
+import { useAppSelector } from "@/redux/hooks";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { OverviewChart, UserDistributionPie, AIUsageChart } from "@/components/AdminCharts";
@@ -9,10 +9,10 @@ import { StatsCard } from "@/components/StatsCard";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { LiveMetricsBar } from "@/components/dashboard/live-metrics-bar";
 import { AnomalyCenter } from "@/components/dashboard/anomaly-center";
+import { ApiClient } from "@/services/api.client";
 
 interface UserData {
   id: string;
-  clerkId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -23,98 +23,33 @@ interface UserData {
 }
 
 export default function AdminDashboard() {
-  const { user, isLoaded: userLoaded } = useUser();
-  const { getToken } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAppSelector((state) => state.auth);
   const router = useRouter();
-  const [accessDenied, setAccessDenied] = useState(false);
-
-  // Fetch User Data and Check Role using React Query
-  const { data: userData, isLoading: queryLoading, error: queryError } = useQuery<UserData>({
-    queryKey: ['adminUser', user?.id],
-    queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error("No token found");
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-      // Sync user with backend
-      const syncRes = await fetch(`${apiUrl}/auth/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: user?.primaryEmailAddress?.emailAddress,
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          imageUrl: user?.imageUrl,
-        }),
-      });
-
-      if (!syncRes.ok) {
-        throw new Error("Failed to sync user");
-      }
-
-      // Get user data with role
-      const meRes = await fetch(`${apiUrl}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!meRes.ok) {
-        throw new Error("Failed to get user data");
-      }
-
-      const data: UserData = await meRes.json();
-      return data;
-    },
-    enabled: !!userLoaded && !!user,
-  });
 
   // Fetch Admin Stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
-       const token = await getToken();
-       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-       const res = await fetch(`${apiUrl}/admin/stats`, {
-           headers: { Authorization: `Bearer ${token}` }
-       });
-       if (!res.ok) throw new Error("Failed to fetch admin stats");
-       return res.json();
+       return ApiClient.fetchWithAuth("/admin/stats");
     },
-    enabled: !!userData && userData.role === "ADMIN"
+    enabled: !!isAuthenticated && user?.role === "ADMIN"
   });
 
-  // Handle access denied based on query result
+  // Handle access denied based on role
   useEffect(() => {
-    if (userData && userData.role !== "ADMIN") {
-      setAccessDenied(true);
+    if (!authLoading && !isAuthenticated) {
+        router.push("/login");
     }
-  }, [userData]);
+  }, [isAuthenticated, authLoading, router]);
 
-  const loading = !userLoaded || queryLoading;
-  const error = queryError ? (queryError as Error).message : null;
+  const accessDenied = !authLoading && isAuthenticated && user?.role?.toLowerCase() !== "admin" && user?.role !== "ADMIN";
 
-  if (!userLoaded || loading) {
+  if (authLoading || (isAuthenticated && !user)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-gray-900">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-white text-lg">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-gray-900">
-        <div className="p-8 rounded-2xl backdrop-blur-xl bg-red-500/10 shadow-2xl border border-red-500/20 max-w-md text-center">
-          <h1 className="text-2xl font-bold text-red-400 mb-4">Error</h1>
-          <p className="text-gray-300">{error}</p>
         </div>
       </div>
     );
@@ -133,15 +68,10 @@ export default function AdminDashboard() {
           <p className="text-gray-300 mb-6">
             You don't have admin privileges. Please contact an administrator if you believe this is an error.
           </p>
-          <div className="flex justify-center">
-             <UserButton afterSignOutUrl="/sign-in" />
-          </div>
         </div>
       </div>
     );
   }
-
-
 
   return (
     <div className="space-y-8">
@@ -164,8 +94,8 @@ export default function AdminDashboard() {
             <div className="p-6 space-y-8">
                  {/* Welcome */}
                 <div>
-                   <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {userData?.firstName || "Admin"} 👋</h1>
-                   <p className="text-gray-400">Here is what's happening with your application today.</p>
+                   <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.firstName || "Admin"} 👋</h1>
+                   <p className="text-gray-400">Here is what&apos;s happening with your application today.</p>
                 </div>
 
                 {/* Live Metrics Pulse */}

@@ -15,7 +15,9 @@ import {
   LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserButton } from "@clerk/nextjs";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { logoutUser } from "@/redux/slices/authSlice";
+import { useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -30,10 +32,23 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
+    router.push("/login");
+  };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <aside
@@ -94,27 +109,26 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+
       </nav>
 
       {/* User Section */}
       <div className={cn("p-4 border-t border-gray-100 dark:border-white/5 mt-auto", isCollapsed && "flex justify-center")}>
-        <div className={cn("flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer w-full", isCollapsed && "justify-center p-0 hover:bg-transparent")}>
-          {mounted ? (
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: "w-8 h-8"
-                }
-              }}
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
-          )}
+        <div className={cn("flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer w-full group", isCollapsed && "justify-center p-0 hover:bg-transparent")}>
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-brand-primary to-brand-secondary flex items-center justify-center text-white font-bold text-sm">
+                {user?.firstName?.[0] || "U"}
+            </div>
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">Account</span>
-              <span className="text-xs text-gray-500 truncate dark:text-gray-500">Manage Profile</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{user?.firstName} {user?.lastName}</span>
+              <button
+                onClick={handleLogout}
+                className="text-xs text-red-500 hover:text-red-400 text-left mt-0.5 flex items-center gap-1"
+              >
+                <LogOut size={12} />
+                Sign Out
+              </button>
             </div>
           )}
         </div>
