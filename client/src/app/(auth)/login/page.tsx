@@ -13,6 +13,9 @@ import { Loader2 } from "lucide-react";
 
 import { Suspense } from "react";
 
+import { AntigravityCard } from "@/components/cards/AntigravityCard";
+import { AntigravityButton } from "@/components/ui/AntigravityButton";
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,70 +48,77 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#050511] p-4">
-      <Card className="w-full max-w-md shadow-lg border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-900">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Sign in</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email and password to access your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className="bg-white dark:bg-zinc-950"
-              />
+    <AntigravityCard variant="glass" className="w-full border-white/5" elevated>
+      <div className="space-y-6">
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-heading font-bold text-white">Sign In</h2>
+          <p className="text-sm text-white/50">
+            Access your account to continue your learning journey
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-white/80 ml-1">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl h-11"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <Label htmlFor="password" title="Password" className="text-white/80">Password</Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-medium text-brand-accent hover:text-brand-primary transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="bg-white dark:bg-zinc-950"
-              />
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl h-11"
+            />
+          </div>
+
+          {error && (
+            <div className="text-xs text-brand-warm text-center font-medium bg-brand-warm/10 p-2 rounded-lg border border-brand-warm/20">
+              {error}
             </div>
-            {error && (
-              <div className="text-sm text-red-500 text-center font-medium">
-                {error}
-              </div>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Sign In
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
-            <div>
-                Don&apos;t have an account?{" "}
-                <Link href="/register" className="text-blue-600 hover:text-blue-500 dark:text-blue-400 font-medium">
-                    Sign up
-                </Link>
-            </div>
-        </CardFooter>
-      </Card>
-    </div>
+          )}
+
+          <AntigravityButton
+            type="submit"
+            className="w-full"
+            disabled={loading}
+            variant="primary"
+          >
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Sign In
+          </AntigravityButton>
+        </form>
+
+        <div className="text-center text-sm text-white/40 pt-2 border-t border-white/5">
+          Don&apos;t have an account?{" "}
+          <Link href="/register" className="text-brand-accent hover:text-brand-primary font-medium transition-colors">
+            Sign up
+          </Link>
+        </div>
+      </div>
+    </AntigravityCard>
   );
 }
 

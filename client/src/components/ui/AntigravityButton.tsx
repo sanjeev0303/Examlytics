@@ -10,7 +10,7 @@ interface AntigravityButtonProps extends HTMLMotionProps<"button"> {
   children: React.ReactNode;
 }
 
-export const AntigravityButton = React.forwardRef<HTMLButtonElement, AntigravityButtonProps>(
+export const AntigravityButton = React.memo(React.forwardRef<HTMLButtonElement, AntigravityButtonProps>(
   ({ className, variant = "primary", size = "md", children, ...props }, ref) => {
     const variants = {
       primary: "bg-brand-primary text-white hover:bg-brand-secondary shadow-[0_0_20px_rgba(99,102,241,0.4)] border-transparent",
@@ -45,6 +45,6 @@ export const AntigravityButton = React.forwardRef<HTMLButtonElement, Antigravity
       </motion.button>
     );
   }
-);
+));
 
 AntigravityButton.displayName = "AntigravityButton";

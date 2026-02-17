@@ -1,5 +1,3 @@
-"use client";
-
 import { ReactNode } from "react";
 
 interface DashboardLayoutProps {
@@ -18,7 +16,7 @@ export function DashboardLayout({
   className = ""
 }: DashboardLayoutProps) {
   return (
-    <div className={`space-y-8 animate-fade-in-up pb-12 ${className}`}>
+    <div className={`space-y-8 pb-12 ${className}`}>
       {/* Header Slot */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         {header}

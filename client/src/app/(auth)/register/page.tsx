@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
+import { AntigravityCard } from "@/components/cards/AntigravityCard";
+import { AntigravityButton } from "@/components/ui/AntigravityButton";
+
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     firstName: "",
@@ -46,7 +49,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-        // You might want to dispatch a specific error or set local state
         return;
     }
     dispatch(registerUser({
@@ -58,106 +60,112 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#050511] p-4">
-      <Card className="w-full max-w-md shadow-lg border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-900">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
-          <CardDescription className="text-center">
-            Enter your information to get started
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                <Label htmlFor="firstName">First name</Label>
-                <Input
-                    id="firstName"
-                    placeholder="John"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    required
-                    disabled={loading}
-                    className="bg-white dark:bg-zinc-950"
-                />
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="lastName">Last name</Label>
-                <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    required
-                    disabled={loading}
-                    className="bg-white dark:bg-zinc-950"
-                />
-                </div>
-            </div>
+    <AntigravityCard variant="glass" className="w-full border-white/5" elevated>
+      <div className="space-y-6">
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-heading font-bold text-white">Join Examlytics</h2>
+          <p className="text-sm text-white/50">
+            Create your account to unlock personalized AI learning
+          </p>
+        </div>
 
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="firstName" className="text-white/80 ml-1">First name</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
+                id="firstName"
+                placeholder="John"
+                value={formData.firstName}
                 onChange={handleChange}
                 required
                 disabled={loading}
-                className="bg-white dark:bg-zinc-950"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl"
               />
             </div>
-
             <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    disabled={loading}
-                    className="bg-white dark:bg-zinc-950"
-                />
+              <Label htmlFor="lastName" className="text-white/80 ml-1">Last name</Label>
+              <Input
+                id="lastName"
+                placeholder="Doe"
+                value={formData.lastName}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl"
+              />
             </div>
-             <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                    disabled={loading}
-                    className="bg-white dark:bg-zinc-950"
-                />
-                 {formData.password !== formData.confirmPassword && formData.confirmPassword && (
-                    <p className="text-xs text-red-500">Passwords do not match</p>
-                )}
-            </div>
+          </div>
 
-            {error && (
-              <div className="text-sm text-red-500 text-center font-medium">
-                {error}
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-white/80 ml-1">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password" title="Password" className="text-white/80 ml-1">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword" title="Confirm Password" className="text-white/80 ml-1">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              placeholder="••••••••"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-brand-primary/50 transition-all rounded-xl"
+            />
+            {formData.password !== formData.confirmPassword && formData.confirmPassword && (
+              <p className="text-xs text-brand-warm ml-1 font-medium italic">Passwords do not match</p>
             )}
+          </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Create Account
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
-            <div>
-                Already have an account?{" "}
-                <Link href="/login" className="text-blue-600 hover:text-blue-500 dark:text-blue-400 font-medium">
-                    Sign in
-                </Link>
+          {error && (
+            <div className="text-xs text-brand-warm text-center font-medium bg-brand-warm/10 p-2 rounded-lg border border-brand-warm/20 mt-2">
+              {error}
             </div>
-        </CardFooter>
-      </Card>
-    </div>
+          )}
+
+          <AntigravityButton
+            type="submit"
+            className="w-full mt-2"
+            disabled={loading}
+            variant="primary"
+          >
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create Account
+          </AntigravityButton>
+        </form>
+
+        <div className="text-center text-sm text-white/40 pt-4 border-t border-white/5">
+          Already have an account?{" "}
+          <Link href="/login" className="text-brand-accent hover:text-brand-primary font-medium transition-colors">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    </AntigravityCard>
   );
 }

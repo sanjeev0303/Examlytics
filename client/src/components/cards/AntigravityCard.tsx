@@ -10,7 +10,7 @@ interface AntigravityCardProps extends HTMLMotionProps<"div"> {
   elevated?: boolean;
 }
 
-export const AntigravityCard = React.forwardRef<HTMLDivElement, AntigravityCardProps>(
+export const AntigravityCard = React.memo(React.forwardRef<HTMLDivElement, AntigravityCardProps>(
   ({ children, className, variant = "glass", elevated = false, ...props }, ref) => {
     const variants = {
       glass: "glass-panel bg-white/5 border-white/10",
@@ -38,6 +38,6 @@ export const AntigravityCard = React.forwardRef<HTMLDivElement, AntigravityCardP
       </motion.div>
     );
   }
-);
+));
 
 AntigravityCard.displayName = "AntigravityCard";

@@ -1,19 +1,26 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const PROTECTED_ROUTES = new Set([
+  'dashboard',
+  'analytics',
+  'history',
+  'exams',
+  'settings',
+  'onboarding',
+  'analysis',
+  'exam',
+  'weak-topics'
+]);
+
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')
-  const isProtected =
-    request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/analytics') ||
-    request.nextUrl.pathname.startsWith('/history') ||
-    request.nextUrl.pathname.startsWith('/exams') ||
-    request.nextUrl.pathname.startsWith('/settings') ||
-    request.nextUrl.pathname.startsWith('/onboarding') ||
-    request.nextUrl.pathname.startsWith('/analysis') ||
-    request.nextUrl.pathname.startsWith('/exam') ||
-    request.nextUrl.pathname.startsWith('/weak-topics')
+  const pathname = request.nextUrl.pathname;
+  const segments = pathname.split('/');
+  const firstSegment = segments[1];
+
+  const isAuthPage = firstSegment === 'login' || firstSegment === 'register'
+  const isProtected = PROTECTED_ROUTES.has(firstSegment)
 
   if (isProtected && !token) {
     return NextResponse.redirect(new URL('/login', request.url))
