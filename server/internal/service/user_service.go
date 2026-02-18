@@ -6,7 +6,7 @@ import (
 
 	"github.com/examlytics/server/internal/domain"
 	"github.com/examlytics/server/internal/dto"
-	"github.com/examlytics/server/internal/repository"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -24,19 +24,19 @@ type UserService interface {
 
 // UserServiceImpl implements UserService
 type UserServiceImpl struct {
-	userRepo repository.UserRepository
-	examRepo repository.ExamRepository
+	userRepo domain.UserRepository
+	examRepo domain.ExamRepository
 }
 
-// NewUserService creates a new UserServiceImpl (updated signature to include examRepo)
-func NewUserService(userRepo repository.UserRepository, examRepo repository.ExamRepository) UserService {
+// NewUserService creates a new UserServiceImpl
+func NewUserService(userRepo domain.UserRepository, examRepo domain.ExamRepository) UserService {
 	return &UserServiceImpl{userRepo: userRepo, examRepo: examRepo}
 }
 
 // CreateUser creates a new user
 func (s *UserServiceImpl) CreateUser(ctx context.Context, data *dto.CreateUserRequest) (*domain.User, error) {
 	// Check if user already exists
-	existingUser, _ := s.userRepo.FindByEmail(ctx, data.Email)
+	existingUser, _ := s.userRepo.GetByEmail(ctx, data.Email)
 	if existingUser != nil {
 		return nil, errors.New("user already exists")
 	}
@@ -46,12 +46,24 @@ func (s *UserServiceImpl) CreateUser(ctx context.Context, data *dto.CreateUserRe
 		return nil, err
 	}
 
-	return s.userRepo.Create(ctx, data, string(hashedPassword))
+	user := &domain.User{
+		Email:     data.Email,
+		Password:  string(hashedPassword),
+		FirstName: data.FirstName,
+		LastName:  data.LastName,
+		ImageURL:  data.ImageURL,
+		Role:      domain.RoleUser,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 // Login authenticates a user
 func (s *UserServiceImpl) Login(ctx context.Context, email, password string) (*domain.User, error) {
-	user, err := s.userRepo.FindByEmail(ctx, email)
+	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +81,7 @@ func (s *UserServiceImpl) Login(ctx context.Context, email, password string) (*d
 
 // GetUserProfile retrieves user profile by ID
 func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID string) (*domain.User, error) {
-	return s.userRepo.FindByID(ctx, userID)
+	return s.userRepo.GetByID(ctx, userID)
 }
 
 // GetUsers retrieves all users
@@ -80,7 +92,7 @@ func (s *UserServiceImpl) GetUsers(ctx context.Context) ([]*domain.User, error) 
 // OnboardUser saves user preferences
 func (s *UserServiceImpl) OnboardUser(ctx context.Context, userID string, req dto.OnboardingRequest) error {
 	// Find user first
-	user, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -91,7 +103,7 @@ func (s *UserServiceImpl) OnboardUser(ctx context.Context, userID string, req dt
 	prefs := &domain.UserPreference{
 		UserID:    user.ID,
 		Goal:      req.TargetGoal,
-		ExamTypes: req.PreferredTopics, // Mapping topics to ExamTypes as requested in PRD
+		ExamTypes: pq.StringArray(req.PreferredTopics), // Mapping topics to ExamTypes as requested in PRD
 	}
 
 	return s.userRepo.SavePreferences(ctx, prefs)
@@ -121,7 +133,7 @@ func (s *UserServiceImpl) GetAdminStats(ctx context.Context) (*dto.AdminStatsRes
 }
 
 func (s *UserServiceImpl) GetUserWeakTopics(ctx context.Context, userID string) ([]*domain.UserWeakTopic, error) {
-	user, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -193,7 +193,7 @@ paths:
   /auth/login:
     post:
       summary: User login
-      description: Authenticates a user and returns a session/token. For Clerk integration, this might be a sync/webhook or token exchange. Assuming standard login for API spec sake or 'sync' as implemented.
+      description: Authenticates a user and returns a session/token.
       security: []
       requestBody:
         required: true
@@ -203,10 +203,11 @@ paths:
               type: object
               required:
                 - email
+                - password
               properties:
                 email:
                   type: string
-                clerkId:
+                password:
                   type: string
       responses:
         '200':

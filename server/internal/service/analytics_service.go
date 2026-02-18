@@ -7,7 +7,6 @@ import (
 
 	"github.com/examlytics/server/internal/domain"
 	"github.com/examlytics/server/internal/dto"
-	"github.com/examlytics/server/internal/repository"
 	"github.com/examlytics/server/pkg/logger"
 )
 
@@ -34,15 +33,15 @@ type AnalyticsService interface {
 }
 
 type analyticsServiceImpl struct {
-	analyticsRepo repository.AnalyticsRepository
-	examRepo      repository.ExamRepository
-	userRepo      repository.UserRepository
+	analyticsRepo domain.AnalyticsRepository
+	examRepo      domain.ExamRepository
+	userRepo      domain.UserRepository
 }
 
 func NewAnalyticsService(
-	analyticsRepo repository.AnalyticsRepository,
-	examRepo repository.ExamRepository,
-	userRepo repository.UserRepository,
+	analyticsRepo domain.AnalyticsRepository,
+	examRepo domain.ExamRepository,
+	userRepo domain.UserRepository,
 ) AnalyticsService {
 	return &analyticsServiceImpl{
 		analyticsRepo: analyticsRepo,

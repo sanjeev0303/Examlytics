@@ -5,10 +5,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
-from app.api import generate, evaluate, train, analyze, exam
+from app.api import generate, evaluate, train, analyze, exam, stream
+from app.middleware.observability import AIObservabilityMiddleware
 
 app = FastAPI(title="Examlytics AI Service", version="1.0.0")
 
+app.add_middleware(AIObservabilityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -65,6 +67,11 @@ app.add_middleware(
 def health_check():
     return {"status": "ok", "service": "examlytics-ai"}
 
+@app.get("/health/stats")
+async def health_stats():
+    from app.core.resilience import resilience_manager
+    return resilience_manager.get_all_stats()
+
 @app.get("/metrics")
 def metrics():
     """
@@ -97,6 +104,7 @@ app.include_router(generate.router, prefix="/api/v1/generate", tags=["generation
 app.include_router(evaluate.router, prefix="/api/v1/evaluate", tags=["evaluation"])
 app.include_router(train.router, prefix="/api/v1/train", tags=["training"])
 app.include_router(analyze.router, prefix="/api/v1/analyze", tags=["analysis"])
+app.include_router(stream.router, prefix="/api/v1/stream", tags=["streaming"])
 app.include_router(exam.router, prefix="/api/exam", tags=["exam"])
 
 import asyncio
@@ -111,6 +119,13 @@ async def startup_event():
 
     logger.info("🚀 AI Service starting up...")
 
+    # 0. Start Exam Worker IMMEDIATELY (in thread)
+    import threading
+    from app.worker.exam_worker import start_worker
+    worker_thread = threading.Thread(target=start_worker, daemon=True)
+    worker_thread.start()
+    print("👷 Worker thread spawned from main.py startup_event")
+
     # 1. Reset all circuit breakers on boot
     from app.core.resilience import resilience_manager
     resilience_manager.reset_all_circuits()
@@ -120,10 +135,8 @@ async def startup_event():
         state = resilience_manager.get_circuit_state(provider)
         logger.info(f"🔌 {provider.upper()} Circuit State: {state}")
 
-    # 2. Startup Safety Window (15 seconds)
-    logger.info("⏰ Startup safety window: 15s delay before worker activation...")
-    await asyncio.sleep(15)
-    logger.info("✅ Startup safety window complete")
+    # 2. Startup Safety Window (Reduced for Dev)
+    logger.info("⏰ Startup safety window: 1s buffer...")
 
     # 3. Run listener in background
     task = asyncio.create_task(listen_to_redis())
@@ -134,11 +147,6 @@ async def startup_event():
     from app.core.cache import redis_cache
     await redis_cache.connect()
 
-    # 5. Start Exam Worker (in thread or separate process ideally, but thread works for I/O bound)
-    import threading
-    from app.worker.exam_worker import start_worker
-    worker_thread = threading.Thread(target=start_worker, daemon=True)
-    worker_thread.start()
 
     logger.info("🎉 AI Service ready to accept requests")
 

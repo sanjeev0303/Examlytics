@@ -11,24 +11,32 @@ import (
 	"github.com/examlytics/server/internal/adapter/redis"
 	"github.com/examlytics/server/internal/domain"
 	"github.com/examlytics/server/internal/dto"
-	"github.com/examlytics/server/internal/repository"
 	"github.com/examlytics/server/pkg/cache"
 	"github.com/examlytics/server/pkg/logger"
 	"github.com/google/uuid"
 )
+
+type StoredUserResponse struct {
+	QuestionID  string            `json:"questionId"`
+	UserAnswer  string            `json:"userAnswer"`
+	IsCorrect   bool              `json:"isCorrect"`
+	TimeSpent   int               `json:"timeSpent"`
+	Explanation map[string]string `json:"explanation"`
+}
 
 // ExamService defines the interface for exam business logic
 type ExamService interface {
 	GetExams(ctx context.Context, userID string) ([]*domain.Exam, error)
 	GetTopics(ctx context.Context) ([]*domain.Topic, error)
 	StartExam(ctx context.Context, userID string, req dto.StartExamRequest) (*dto.ExamGenerationStatus, error)
-	GenerateExamSync(ctx context.Context, userID string, req dto.StartExamRequest) (*domain.ExamSession, error)
+	GenerateExamSync(ctx context.Context, userID string, sessionID string, req dto.StartExamRequest) (*domain.ExamSession, error)
 	GetExamGenerationStatus(ctx context.Context, jobID string) (*dto.ExamGenerationStatus, error)
 	GetExamSession(ctx context.Context, sessionID string) (*dto.ExamSessionResponse, error)
 	SubmitExam(ctx context.Context, userID string, req dto.SubmitExamRequest) (*dto.ExamGenerationStatus, error)
 	SubmitExamSync(ctx context.Context, userID string, req dto.SubmitExamRequest) (*dto.ExamResultResponse, error)
 	GetUserExamHistory(ctx context.Context, userID string) ([]*dto.ExamSessionResponse, error)
 	GetWeakTopics(ctx context.Context, userID string) ([]*dto.WeakTopicSummary, error)
+	SubscribeToExamStream(ctx context.Context, jobID string) (<-chan string, error)
 }
 
 // Internal struct to match AI Service JSON Schema (snake_case and camelCase fallback)
@@ -57,9 +65,9 @@ type EvaluatedUserResponse struct {
 
 // ExamServiceImpl implements ExamService
 type ExamServiceImpl struct {
-	examRepo         repository.ExamRepository
+	examRepo         domain.ExamRepository
 	questionRepo     domain.QuestionRepository
-	userRepo         repository.UserRepository
+	userRepo         domain.UserRepository
 	aiClient         *ai.AIClient
 	redisClient      *redis.RedisClient
 	analyticsService AnalyticsService // Injected
@@ -68,9 +76,9 @@ type ExamServiceImpl struct {
 
 // NewExamService creates a new ExamServiceImpl
 func NewExamService(
-	examRepo repository.ExamRepository,
+	examRepo domain.ExamRepository,
 	questionRepo domain.QuestionRepository,
-	userRepo repository.UserRepository,
+	userRepo domain.UserRepository,
 	aiClient *ai.AIClient,
 	redisClient *redis.RedisClient,
 	analyticsService AnalyticsService,
@@ -275,24 +283,20 @@ func (s *ExamServiceImpl) GetExamSession(ctx context.Context, sessionID string) 
 				logger.Error(err, "Failed to unmarshal questions from JSONB")
 			} else {
 				// Parse UserResponses JSONB if available (Fix for persisting answers without DB relation)
-				userResMap := make(map[string]EvaluatedUserResponse) // Changed to EvaluatedUserResponse
+				// The Python worker saves this as a MAP: {"qId": { ... }}
+				userResMap := make(map[string]StoredUserResponse)
+
 				if len(session.UserResponses) > 0 {
-					var userResponses []EvaluatedUserResponse
-					if err := json.Unmarshal(session.UserResponses, &userResponses); err == nil {
-						for _, urin := range userResponses {
-							userResMap[urin.QuestionID] = urin
-						}
-					} else {
-						// Fallback for legacy format
-						var legacyResponses []dto.AnswerSubmission
-						if err := json.Unmarshal(session.UserResponses, &legacyResponses); err == nil {
-							for _, urin := range legacyResponses {
-								userResMap[urin.QuestionID] = EvaluatedUserResponse{
-									QuestionID: urin.QuestionID,
-									Answer:     urin.Answer,
-									TimeSpent:  urin.TimeSpent,
-								}
+					// try map unmarshal
+					if err := json.Unmarshal(session.UserResponses, &userResMap); err != nil {
+						// Fallback: Try array format (legacy or if changed back)
+						var arrayResponses []StoredUserResponse
+						if err2 := json.Unmarshal(session.UserResponses, &arrayResponses); err2 == nil {
+							for _, resp := range arrayResponses {
+								userResMap[resp.QuestionID] = resp
 							}
+						} else {
+							logger.Error(err, "Failed to unmarshal user responses (map & array failed)")
 						}
 					}
 				}
@@ -321,7 +325,7 @@ func (s *ExamServiceImpl) GetExamSession(ctx context.Context, sessionID string) 
 					// Populate details if user response exists (and status is completed)
 					if session.Status == domain.SessionCompleted {
 						if uRes, ok := userResMap[aiQ.ID]; ok {
-							qDto.UserAnswer = uRes.Answer
+							qDto.UserAnswer = uRes.UserAnswer
 							qDto.TimeSpent = uRes.TimeSpent
 							qDto.IsCorrect = uRes.IsCorrect
 							// Map explanation if available (Assuming QuestionDTO has Explanation field)
@@ -458,29 +462,18 @@ func (s *ExamServiceImpl) StartExam(ctx context.Context, userID string, req dto.
 		return nil, err
 	}
 
-	// 2. Prepare Job for Redis (Match Python Worker expectations)
-	preferences := map[string]interface{}{
-		"type":           req.Type,
-		"mode":           req.Mode,
-		"difficulty":     req.Difficulty,
-		"question_count": req.QuestionCount, // Mapped to snake_case for Python
-		"topic_id":       req.TopicID,       // Mapped to snake_case for Python
-		"language":       req.Language,      // Mapped to snake_case for Python
-		"job_category":   req.JobCategory,   // Mapped to snake_case for Python
-		"subjects":       req.Subjects,      // Mapped to snake_case for Python
-	}
-
+	// 2. Prepare Job for Redis (Using DTO for consistency with Python worker)
 	source := req.Source
 	if source == "" {
 		source = "client"
 	}
 
-	job := map[string]interface{}{
-		"job_id":      session.ID,
-		"user_id":     userID,      // Changed from clerkId
-		"preferences": preferences, // Changed from request
-		"source":      source,
-		"created_at":  time.Now().Unix(),
+	job := dto.ExamGenerationJob{
+		JobID:       session.ID,
+		UserID:      userID,
+		Preferences: req,
+		Source:      source,
+		CreatedAt:   time.Now().Unix(),
 	}
 
 	jobBytes, _ := json.Marshal(job)
@@ -491,7 +484,7 @@ func (s *ExamServiceImpl) StartExam(ctx context.Context, userID string, req dto.
 		logger.Error(nil, "Redis client is not initialized")
 		return nil, errors.New("internal error: redis unavailable")
 	}
-	if err := s.redisClient.Enqueue(ctx, "queue:exam_generation", jobBytes); err != nil {
+	if err := s.redisClient.Enqueue(ctx, "queue:exam_generation_v2", jobBytes); err != nil {
 		// If Redis fails, mark as FAILED
 		// Logic to update session status... but for now just error out
 		logger.Error(err, "Failed to enqueue exam generation job")
@@ -533,7 +526,7 @@ func (s *ExamServiceImpl) GetExamGenerationStatus(ctx context.Context, jobID str
 }
 
 // GenerateExamSync contains the core logic for generating an exam (now called by worker)
-func (s *ExamServiceImpl) GenerateExamSync(ctx context.Context, userID string, req dto.StartExamRequest) (*domain.ExamSession, error) {
+func (s *ExamServiceImpl) GenerateExamSync(ctx context.Context, userID string, sessionID string, req dto.StartExamRequest) (*domain.ExamSession, error) {
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -621,17 +614,16 @@ func (s *ExamServiceImpl) GenerateExamSync(ctx context.Context, userID string, r
 		}
 	}
 
-	// 3. Create Session
-	session := &domain.ExamSession{
-		UserID:         userID,
-		Type:           req.Type,
-		TopicID:        req.TopicID,
-		TotalQuestions: len(questions),
-		Status:         domain.SessionLive,
-		StartedAt:      time.Now(),
+	// 3. Update Existing Session
+	session, err := s.examRepo.FindExamSessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := s.examRepo.CreateExamSession(session); err != nil {
+	session.Status = domain.SessionLive
+	session.TotalQuestions = len(questions)
+
+	if err := s.examRepo.UpdateExamSession(session); err != nil {
 		return nil, err
 	}
 
@@ -671,7 +663,7 @@ func (s *ExamServiceImpl) SubmitExam(ctx context.Context, userID string, req dto
 	if s.redisClient == nil {
 		return nil, errors.New("redis unavailable")
 	}
-	if err := s.redisClient.Enqueue(ctx, "queue:exam_submission", jobBytes); err != nil {
+	if err := s.redisClient.Enqueue(ctx, "queue:exam_submission_v2", jobBytes); err != nil {
 		return nil, err
 	}
 
@@ -1333,4 +1325,50 @@ func (s *ExamServiceImpl) updateTopicAggregates(ctx context.Context, userID stri
 		_ = s.examRepo.UpsertUserTopicAggregate(ctx, agg)
 	}
 	return nil
+}
+
+func (s *ExamServiceImpl) SubscribeToExamStream(ctx context.Context, jobID string) (<-chan string, error) {
+	if s.redisClient == nil {
+		return nil, errors.New("redis client not initialized")
+	}
+
+	channelName := fmt.Sprintf("exam:stream:%s", jobID)
+	pubsub := s.redisClient.Subscribe(ctx, channelName)
+
+	ch := make(chan string)
+
+	go func() {
+		defer pubsub.Close()
+		defer close(ch)
+
+		// 1. Send current status first to handle race conditions
+		// This ensures the client moves past 'INITIALIZING' even if subscription was slow
+		status, err := s.GetExamGenerationStatus(ctx, jobID)
+		if err == nil && status != nil {
+			initialMsg := map[string]interface{}{
+				"type":   "status",
+				"status": status.Status,
+				"jobId":  jobID,
+			}
+			if msgBytes, err := json.Marshal(initialMsg); err == nil {
+				ch <- string(msgBytes)
+			}
+		}
+
+		// 2. Listen for messages from Redis
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				msg, err := pubsub.ReceiveMessage(ctx)
+				if err != nil {
+					return
+				}
+				ch <- msg.Payload
+			}
+		}
+	}()
+
+	return ch, nil
 }

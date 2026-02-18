@@ -114,7 +114,7 @@ func (r *Router) Setup() *gin.Engine {
 		"https://examlytics-client.vercel.app",
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"} // Removed X-Clerk-User-ID
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	corsConfig.AllowCredentials = true
 	r.engine.Use(cors.New(corsConfig))
 
@@ -149,6 +149,7 @@ func (r *Router) Setup() *gin.Engine {
 	userHandler := handler.NewUserHandler(userService)
 	authHandler := handler.NewAuthHandler(userService)
 	examHandler := handler.NewExamHandler(examService)
+	adminHandler := handler.NewAdminHandler(userService, examService, r.cfg.AIServiceURL, r.cfg.AIServiceSecret, r.db, redisClient)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsService, userRepo)
 
 	// Metrics
@@ -161,7 +162,7 @@ func (r *Router) Setup() *gin.Engine {
 	r.registerUserRoutes(userHandler, requestTimeout)
 	r.registerAuthRoutes(authHandler, jwtAuth, authLimiter, requestTimeout) // Updated signature
 	r.registerExamRoutes(examHandler, jwtAuth, submitLimiter, requestTimeout)
-	r.registerAdminRoutes(userHandler)
+	r.registerAdminRoutes(adminHandler)
 	r.registerAnalyticsRoutes(analyticsHandler, jwtAuth, requestTimeout)
 
 	// Metrics & Health
@@ -171,8 +172,11 @@ func (r *Router) Setup() *gin.Engine {
 }
 
 func (r *Router) registerHealthRoutes(h *handler.HealthHandler) {
-	r.engine.GET("/health", h.HealthCheck)
-	r.engine.GET("/health/detailed", h.ReadinessCheck)
+	health := r.engine.Group("/health")
+	{
+		health.GET("", h.HealthCheck)
+		health.GET("/detailed", h.ReadinessCheck)
+	}
 }
 
 func (r *Router) registerUserRoutes(h *handler.UserHandler, timeout time.Duration) {
@@ -257,16 +261,17 @@ func (r *Router) registerExamRoutes(h *handler.ExamHandler, auth *middleware.JWT
 			middleware.PropagateDeadline(timeout*2),
 			h.SubmitExam,
 		)
+		examsAuth.GET("/stream/:jobId", h.StreamExam)
 	}
 }
 
-func (r *Router) registerAdminRoutes(h *handler.UserHandler) {
+func (r *Router) registerAdminRoutes(h *handler.AdminHandler) {
 	admin := r.engine.Group("/admin")
 	admin.Use(r.admissionCtrl.Limit("medium")) // Admin tools are medium priority
-	admin.Use(middleware.PropagateDeadline(10 * time.Second))
+	admin.Use(middleware.PropagateDeadline(15 * time.Second))
 	{
-		admin.GET("/stats", h.GetAdminStats)
-		admin.GET("/users/:id/ai-context", h.GetUserAIContext)
+		admin.GET("/stats", h.GetSystemStats)
+		admin.GET("/exams", h.GetExamRecords)
 	}
 }
 

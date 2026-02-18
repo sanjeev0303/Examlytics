@@ -179,3 +179,8 @@ func (r *RedisClient) Incr(ctx context.Context, key string) (int64, error) {
 func (r *RedisClient) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
 	return r.Client.SetNX(ctx, key, value, expiration).Result()
 }
+
+// Subscribe returns a PubSub for a channel.
+func (r *RedisClient) Subscribe(ctx context.Context, channel string) *redis.PubSub {
+	return r.Client.Subscribe(ctx, channel)
+}

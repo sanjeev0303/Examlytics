@@ -4,12 +4,16 @@ interface UIState {
   theme: 'light' | 'dark' | 'system';
   isSidebarCollapsed: boolean;
   isMobileMenuOpen: boolean;
+  activeStreamingQuestionId: string | null;
+  dashboardPeriod: 'day' | 'week' | 'month';
 }
 
 const initialState: UIState = {
   theme: 'system',
   isSidebarCollapsed: false,
   isMobileMenuOpen: false,
+  activeStreamingQuestionId: null,
+  dashboardPeriod: 'week',
 };
 
 const uiSlice = createSlice({
@@ -31,6 +35,12 @@ const uiSlice = createSlice({
     setMobileMenuOpen: (state, action: PayloadAction<boolean>) => {
       state.isMobileMenuOpen = action.payload;
     },
+    setActiveStreamingQuestion: (state, action: PayloadAction<string | null>) => {
+      state.activeStreamingQuestionId = action.payload;
+    },
+    setDashboardPeriod: (state, action: PayloadAction<'day' | 'week' | 'month'>) => {
+      state.dashboardPeriod = action.payload;
+    },
   },
 });
 
@@ -39,7 +49,9 @@ export const {
   toggleSidebar,
   setSidebarCollapsed,
   toggleMobileMenu,
-  setMobileMenuOpen
+  setMobileMenuOpen,
+  setActiveStreamingQuestion,
+  setDashboardPeriod
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

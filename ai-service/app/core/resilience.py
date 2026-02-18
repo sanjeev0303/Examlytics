@@ -161,5 +161,26 @@ class AIResilienceManager:
         except Exception as e:
             logger.error(f"Failed to record token usage: {e}")
 
+    def get_all_stats(self) -> dict:
+        """
+        Returns stats for all providers: status, used tokens, limit, remaining.
+        """
+        providers = ["groq", "gemini", "mistral"]
+        stats = {}
+        for p in providers:
+            usage_key = self._get_token_usage_key(p)
+            used = int(redis_client.get(usage_key) or 0)
+
+            limit_env = f"AI_{p.upper()}_LIMIT"
+            limit = int(os.getenv(limit_env, self.daily_token_limit))
+
+            stats[p] = {
+                "status": self.get_circuit_state(p),
+                "used": used,
+                "limit": limit,
+                "remaining": max(0, limit - used)
+            }
+        return stats
+
 # Singleton
 resilience_manager = AIResilienceManager()

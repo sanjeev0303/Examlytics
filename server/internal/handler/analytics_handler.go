@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/examlytics/server/internal/repository"
+	"github.com/examlytics/server/internal/domain"
 	"github.com/examlytics/server/internal/service"
 	"github.com/examlytics/server/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -12,11 +12,11 @@ import (
 // AnalyticsHandler handles analytics-related HTTP requests
 type AnalyticsHandler struct {
 	analyticsService service.AnalyticsService
-	userRepo         repository.UserRepository
+	userRepo         domain.UserRepository
 }
 
 // NewAnalyticsHandler creates a new AnalyticsHandler
-func NewAnalyticsHandler(analyticsService service.AnalyticsService, userRepo repository.UserRepository) *AnalyticsHandler {
+func NewAnalyticsHandler(analyticsService service.AnalyticsService, userRepo domain.UserRepository) *AnalyticsHandler {
 	return &AnalyticsHandler{
 		analyticsService: analyticsService,
 		userRepo:         userRepo,

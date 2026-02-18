@@ -19,10 +19,9 @@ from app.schemas.analytics import BlueprintRequest, QuestionCriteria
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 r = redis.Redis.from_url(REDIS_URL)
 
-QUEUE_NAME = "queue:exam_generation"
-
-
-QUEUE_DELAYED = "queue:exam_delayed"
+QUEUE_NAME = "queue:exam_generation_v2"
+QUEUE_SUBMISSION = "queue:exam_submission_v2"
+QUEUE_DELAYED = "queue:exam_delayed" # Keep delayed same for now or change to v2 if needed
 
 def validate_job(job: dict) -> tuple[bool, str]:
     """
@@ -30,7 +29,7 @@ def validate_job(job: dict) -> tuple[bool, str]:
     Returns: (is_valid, reason)
     """
     # Check required fields
-    required_fields = ["job_id", "user_id", "source", "created_at"]
+    required_fields = ["jobId", "userId", "source", "createdAt"]
     for field in required_fields:
         if field not in job:
             return False, f"Missing required field: {field}"
@@ -42,12 +41,12 @@ def validate_job(job: dict) -> tuple[bool, str]:
 
     # Check if job is stale (older than 24 hours)
     try:
-        created_at = float(job.get("created_at", 0))
+        created_at = float(job.get("createdAt", job.get("created_at", 0)))
         if created_at == 0: # Handle explicit 0 or missing key default
              created_at = time.time()
     except (ValueError, TypeError):
          created_at = time.time() # Default to now if invalid
-         print(f"⚠️ Warning: Invalid created_at for job {job.get('job_id')}, treating as fresh.")
+         print(f"⚠️ Warning: Invalid created_at for job {job.get('jobId')}, treating as fresh.")
 
     job_age = time.time() - created_at
     if job_age > 86400:  # 24 hours
@@ -55,46 +54,66 @@ def validate_job(job: dict) -> tuple[bool, str]:
 
     return True, "valid"
 
+def log_to_file(msg):
+    with open("/tmp/worker.log", "a") as f:
+        f.write(f"[{time.ctime()}] {msg}\n")
+
 def start_worker():
+    log_to_file("👷 Worker starting...")
+    try:
+        host = r.connection_pool.connection_kwargs.get("host")
+        log_to_file(f"🌐 Redis Host: {host}")
+        log_to_file(f"🔗 Redis URL (Start): {REDIS_URL[:20]}...")
+        if r.ping():
+            log_to_file("✅ Redis Ping Successful")
+        else:
+            log_to_file("❌ Redis Ping Failed")
+    except Exception as e:
+        log_to_file(f"❌ Redis Connection Diagnostic Error: {str(e)}")
+
     print(f"👷 Exam Worker: Listening on {QUEUE_NAME}...")
 
     # Start delayed job processor in bg thread
     import threading
     threading.Thread(target=process_delayed_jobs, daemon=True).start()
 
+    log_to_file(f"Listening on {QUEUE_NAME}")
+
     while True:
         try:
             # Check if worker is enabled via Redis flag
             worker_enabled = r.get("exam:worker:enabled")
-            if worker_enabled != b"true" and worker_enabled != "true":
-                print("⏸️  Worker paused: exam:worker:enabled flag not set to 'true'")
-                time.sleep(5)
+
+            if worker_enabled and (worker_enabled == b"true" or worker_enabled == "true"):
+                pass
+            else:
+                time.sleep(1)
                 continue
 
-            # Blocking Pop from Main Queue
-            result = r.blpop(QUEUE_NAME, timeout=5)
+            # Blocking Pop from Main Queues (Priority: Submission > Generation)
+            result = r.blpop(QUEUE_SUBMISSION, timeout=1)
+            if result:
+                _, data = result
+                job = json.loads(data)
+                process_submission_job(job)
+                continue
+
+            # If no submission, check generation
+            result = r.blpop(QUEUE_NAME, timeout=1)
             if not result:
                 continue
 
             _, data = result
+            log_to_file(f"🚀 Popped GENERATION (v2): {data[:50]}")
             job = json.loads(data)
-
-            job_id = job.get('job_id', 'unknown')
-            print(f"👷 Exam Worker: Received job {job_id}")
-
-            # Validate job
-            is_valid, reason = validate_job(job)
-            if not is_valid:
-                print(f"❌ Job validation failed for {job_id}: {reason}")
-                print(f"🗑️  Discarding invalid/orphan job: {job_id}")
-                continue
-
-            print(f"✅ Job {job_id} validated successfully (source: {job.get('source')})")
+            # Standardize for process_job
+            if "jobId" not in job and "job_id" in job:
+                job["jobId"] = job["job_id"]
             process_job(job)
 
         except Exception as e:
-            print(f"❌ Exam Worker: Error in loop: {e}")
-            time.sleep(1) # Prevent tight loop on Redis error
+            log_to_file(f"❌ Loop Error: {str(e)}")
+            time.sleep(1)
 
 # Track discarded jobs to prevent log spam
 _discarded_jobs = set()
@@ -232,20 +251,62 @@ def process_delayed_jobs():
             time.sleep(5)
 
 def process_job(job):
-    session_id = job.get("job_id")
+    session_id = job.get("jobId") or job.get("job_id")
     preferences = job.get("preferences", {})
 
     db: Session = SessionLocal()
     try:
-        # 1. Fetch Session & Update Status
-        session = db.query(ExamSession).filter(ExamSession.id == session_id).first()
+        # 1. Fetch Session & Update Status (with retry for race conditions)
+        session = None
+        log_to_file(f"Looking for session {session_id}")
+        for attempt in range(5):
+            session = db.query(ExamSession).filter(ExamSession.id == session_id).first()
+            if session:
+                break
+            log_to_file(f"Session {session_id} not found, retry {attempt+1}")
+            time.sleep(1)
+
         if not session:
-            print(f"❌ Exam Worker: Session {session_id} not found")
+            log_to_file(f"❌ Session {session_id} NOT FOUND")
+            # Update Redis to reflect failure so UI stops waiting
+            r.set(f"job:{session_id}", json.dumps({
+                "jobId": session_id,
+                "status": "FAILED",
+                "error": "Session not found in shared database"
+            }), ex=3600)
             return
 
+        log_to_file(f"Session {session_id} found. Status -> PROCESSING")
         session.status = "PROCESSING"
         db.commit()
+        db.refresh(session)
 
+        # Update Redis job status for polling/initial state
+        r.set(f"job:{session_id}", json.dumps({
+            "jobId": session_id,
+            "status": "PROCESSING",
+            "sessionId": session_id
+        }), ex=3600)
+
+        # Publish PROCESSING immediately to move UI past PENDING
+        r.publish(f"exam:stream:{session_id}", json.dumps({
+            "type": "status",
+            "status": "PROCESSING",
+            "jobId": session_id,
+            "message": "Worker active: Preparing AI context..."
+        }))
+        log_to_file(f"Published PROCESSING for {session_id}")
+
+        # Small sleep to allow client/server subscription to complete
+        time.sleep(1.0)
+
+        # Publish GENERATING status
+        r.publish(f"exam:stream:{session_id}", json.dumps({
+            "type": "status",
+            "status": "GENERATING",
+            "jobId": session_id,
+            "message": "Initializing AI pathways..."
+        }))
         # 2. Fetch User AI Context for Adaptive Intelligence
         user_id = session.user_id
 
@@ -268,42 +329,46 @@ def process_job(job):
             print(f"🧠 No prior context for {session_id}. Using defaults.")
 
         # 3. Generate Content using AI
-        from app.core.llm import generate_exam_content
+        from app.core.llm import generate_exam_incremental
 
         print(f"🤖 Exam Worker: Generating questions via AI for {session_id}...")
-        questions_data = asyncio.run(
-            generate_exam_content(preferences, context=prompt_context)
-        )
-
-        if not questions_data:
-             print("⚠️ AI generation returned empty, trying fallback or retry.")
-             raise Exception("AI failed to generate questions (Exhausted/RateLimit)")
 
         questions_json = []
 
-        # 3. Create Questions in DB (if we want to persist them as reusable entities)
-        # OR just store them in the session if they are ephemeral custom gen.
-        # The prompt implies dynamic generation. Let's persist them for analytics but maybe mark them as generated.
+        async def run_generation():
+            nonlocal questions_json
+            async for q_data in generate_exam_incremental(preferences, context=prompt_context):
+                if q_data is None:
+                    raise Exception("AI failed to generate questions (Exhausted/RateLimit)")
 
-        for i, q_data in enumerate(questions_data):
-            # Create Question Record
-            options_raw = q_data.get("options")
-            print(f"🔍 DEBUG: Q{i} Raw Options: {options_raw}")
-            if options_raw is None:
-                options_raw = []
+                # Create formatted question
+                q_id = str(uuid.uuid4())
+                question = {
+                    "id": q_id,
+                    "text": q_data.get("question") or q_data.get("problem_statement"),
+                    "options": q_data.get("options") or [],
+                    "type": q_data.get("type", "MCQ"),
+                    "correct_answer": q_data.get("correct_answer"),
+                    "difficulty": q_data.get("difficulty", "Medium"),
+                    "explanation": q_data.get("explanation")
+                }
+                questions_json.append(question)
 
-            # (Optional) We skip saving individual Question models to DB for speed in this refactor,
-            # assuming we just store JSON in session. Or keep existing logic if robust.
-            # Keeping simplistic logic for constraints:
-            questions_json.append({
-                "id": str(uuid.uuid4()),
-                "text": q_data.get("question") or q_data.get("problem_statement"),
-                "options": options_raw,
-                "type": q_data.get("type", "MCQ"),
-                "correct_answer": q_data.get("correct_answer"),
-                "difficulty": q_data.get("difficulty", "Medium"),
-                "explanation": q_data.get("explanation")
-            })
+                # Publish to Redis channel for live streaming
+                r.publish(f"exam:stream:{session_id}", json.dumps({
+                    "type": "question",
+                    "index": len(questions_json) - 1,
+                    "total": preferences.get("question_count", 5),
+                    "data": question
+                }))
+                print(f"📡 Published question {len(questions_json)} to stream")
+
+        log_to_file(f"Starting AI generation for {session_id}")
+        asyncio.run(run_generation())
+
+        if not questions_json:
+             log_to_file(f"⚠️ AI generation returned empty for {session_id}")
+             raise Exception("AI failed to generate questions (Empty Result)")
 
         # 4. Update Session to READY
         session.questions = questions_json
@@ -311,12 +376,21 @@ def process_job(job):
         session.total_questions = len(questions_json)
         db.commit()
 
-        # Update Redis status for polling
+        # Update Redis status for polling (legacy compatibility)
         redis_status = {
             "jobId": session_id,
             "status": "READY"
         }
         r.set(f"job:{session_id}", json.dumps(redis_status), ex=3600)
+
+        # Publish completion event
+        r.publish(f"exam:stream:{session_id}", json.dumps({
+            "type": "status",
+            "status": "COMPLETED",
+            "sessionId": session_id,
+            "message": "Exam ready!"
+        }))
+
         print(f"✅ Exam Worker: Job {session_id} completed. {len(questions_json)} questions generated.")
 
 
@@ -349,6 +423,101 @@ def process_job(job):
         print("⚠️ Retries exhausted. Triggering MANDATORY HARD FALLBACK.")
         perform_hard_fallback(session_id, preferences, db, str(e))
 
+    finally:
+        db.close()
+
+def process_submission_job(job):
+    job_id = job.get("jobId")
+    user_id = job.get("userId")
+    request = job.get("request")
+    session_id = request.get("sessionId")
+    answers = request.get("answers", [])
+
+    print(f"📝 Processing submission for Session {session_id} (Job {job_id})")
+    # print(f"🔍 DEBUG: Answers received: {len(answers)}")
+    # if len(answers) > 0:
+    #     print(f"🔍 DEBUG: First answer sample: {answers[0]}")
+
+    db: Session = SessionLocal()
+    try:
+        session = db.query(ExamSession).filter(ExamSession.id == session_id).first()
+        if not session:
+            print(f"❌ Submission Error: Session {session_id} not found")
+            return
+
+        # 1. Calculate Score
+        # Load questions from JSONB
+        questions = session.questions or []
+        question_map = {q["id"]: q for q in questions}
+
+        correct_count = 0
+        total_questions = len(questions)
+        total_time = 0
+
+        user_responses_map = {}
+
+        for ans in answers:
+            q_id = ans.get("questionId")
+            user_ans = ans.get("answer")
+            time_spent = ans.get("timeSpent", 0)
+            total_time += time_spent
+
+            if q_id in question_map:
+                correct_ans = question_map[q_id].get("correct_answer")
+                is_correct = (user_ans == correct_ans)
+                if is_correct:
+                    correct_count += 1
+
+                user_responses_map[q_id] = {
+                    "questionId": q_id,
+                    "userAnswer": user_ans,
+                    "isCorrect": is_correct,
+                    "timeSpent": time_spent
+                }
+
+        # 2. Update Session
+        score = (correct_count / total_questions) * 100 if total_questions > 0 else 0
+        accuracy = score # Same for now
+
+        session.score = int(score)
+        session.accuracy = int(accuracy)
+        session.time_taken = total_time
+        session.user_responses = user_responses_map
+        session.status = "COMPLETED"
+
+        # db.commit() # Commit intermediate? No, do it at end.
+
+        # 3. Trigger AI Weakness Analysis
+        from app.core.llm import evaluate_exam_submission
+
+        submission_data = {
+            "questions": questions,
+            "answers": user_responses_map,
+            "total_questions": total_questions,
+            "correct_count": correct_count
+        }
+
+        print(f"🤖 AI Analysis started for {session_id}...")
+        try:
+             analysis_result = asyncio.run(evaluate_exam_submission(submission_data))
+             session.cached_analysis = analysis_result
+             print(f"✅ AI Analysis completed for {session_id}")
+        except Exception as e:
+             print(f"⚠️ AI Analysis failed: {e}")
+             session.job_error = f"AI Analysis Failed: {str(e)[:100]}"
+
+        db.commit()
+
+        # Publish completion event
+        r.publish(f"exam:stream:{job_id}", json.dumps({
+            "type": "analysis",
+            "status": "ANALYSIS_COMPLETED",
+            "sessionId": session_id,
+        }))
+
+    except Exception as e:
+        print(f"❌ Submission Processing Error: {e}")
+        db.rollback()
     finally:
         db.close()
 

@@ -56,35 +56,49 @@ class ModelRegistry:
                 temperature=0.7
             )
 
+        # 5. Mistral (High Quality / Euro-Host)
+        if os.getenv("MISTRAL_API_KEY"):
+            self._models[LLMProvider.MISTRAL] = ChatOpenAI(
+                 api_key=os.getenv("MISTRAL_API_KEY"),
+                 base_url="https://api.mistral.ai/v1",
+                 model="mistral-medium",
+                 temperature=0.7,
+                 max_retries=0
+            )
+
     def get_model(self, provider: LLMProvider):
         return self._models.get(provider)
 
     def get_generation_llm(self):
         """
-        Policy: Groq > Gemini > Claude > OpenAI
+        Policy: Groq > Gemini > Mistral > Claude > OpenAI
         """
         if LLMProvider.GROQ in self._models:
             return self._models[LLMProvider.GROQ]
         if LLMProvider.GEMINI in self._models:
             return self._models[LLMProvider.GEMINI]
+        if LLMProvider.MISTRAL in self._models:
+            return self._models[LLMProvider.MISTRAL]
         if LLMProvider.CLAUDE in self._models:
             return self._models[LLMProvider.CLAUDE]
         if LLMProvider.OPENAI in self._models:
             return self._models[LLMProvider.OPENAI]
-        raise Exception("No AI Providers configured for Generation! Set GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.")
+        raise Exception("No AI Providers configured for Generation! Set GROQ_API_KEY, GEMINI_API_KEY, or MISTRAL_API_KEY.")
 
     def get_evaluation_llm(self):
         """
-        Policy: OpenAI > Claude > Gemini
+        Policy: Gemini > Groq > Mistral > OpenAI
         """
-        if LLMProvider.OPENAI in self._models:
-            return self._models[LLMProvider.OPENAI]
-        if LLMProvider.CLAUDE in self._models:
-            return self._models[LLMProvider.CLAUDE]
         if LLMProvider.GEMINI in self._models:
             return self._models[LLMProvider.GEMINI]
         if LLMProvider.GROQ in self._models:
             return self._models[LLMProvider.GROQ]
+        if LLMProvider.MISTRAL in self._models:
+            return self._models[LLMProvider.MISTRAL]
+        if LLMProvider.OPENAI in self._models:
+            return self._models[LLMProvider.OPENAI]
+        if LLMProvider.CLAUDE in self._models:
+            return self._models[LLMProvider.CLAUDE]
         raise Exception("No AI Providers configured for Evaluation!")
 
 # Singleton Instance
@@ -366,6 +380,151 @@ REMINDER: Output ONLY the JSON array. Nothing else.""")
     # Worker will handle Hard Fallback
     return []
 
+async def generate_exam_incremental(preferences: dict, context: dict = {}):
+    """
+    Incremental generator that yields questions as they are produced by the LLM.
+    """
+    valid_context = context or {}
+    # Robust defaults for preferences
+    question_count = preferences.get("question_count") or preferences.get("questionCount") or 5
+    topics = preferences.get("topic_id") or preferences.get("topicId") or preferences.get("topics", "General")
+    subjects = preferences.get("subjects", "General")
+    difficulty = preferences.get("difficulty", "Medium")
+    language = preferences.get("language", "English")
+
+    # Priority: Groq -> Gemini -> Mistral
+    providers_priority = [LLMProvider.GROQ, LLMProvider.GEMINI, LLMProvider.MISTRAL]
+
+    optimized_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert exam generator. Output VALID JSON ARRAY ONLY. No markdown. No explanations."),
+        ("user", """Return a JSON ARRAY of {question_count} high-quality questions.
+CRITICAL: Do NOT return an empty list []. Generate the requested count.
+No prose. No markdown code blocks. No commentary.
+
+Subject: {subjects}
+Topic: {topics}
+Difficulty: {difficulty}
+Language: {language}
+Target Audience: {user_level}
+Areas for Improvement: {weak_topics}
+
+Format: [{{
+  "question": "clear question text",
+  "options": ["opt1", "opt2", "opt3", "opt4"],
+  "correct_answer": "text matching one option",
+  "difficulty": "{difficulty}",
+  "type": "MCQ",
+  "explanation": "concise explanation"
+}}]""")
+    ])
+
+    last_error = None
+
+    for provider in providers_priority:
+        provider_name = provider.value
+        if not resilience_manager.check_circuit(provider_name):
+            print(f"⏩ {provider_name}: Circuit OPEN, skipping.")
+            continue
+
+        try:
+            llm = None
+            if provider == LLMProvider.GROQ and os.getenv("GROQ_API_KEY"):
+                print(f"🤖 Attempting Incremental Generation with {provider_name}...")
+                llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.7)
+            elif provider == LLMProvider.GEMINI and (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+                print(f"🤖 Attempting Incremental Generation with {provider_name}...")
+                api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+                llm = ChatGoogleGenerativeAI(
+                    model="gemini-2.0-flash",
+                    temperature=0.7,
+                    google_api_key=api_key,
+                    convert_system_message_to_human=True
+                )
+            elif provider == LLMProvider.MISTRAL and os.getenv("MISTRAL_API_KEY"):
+                print(f"🤖 Attempting Incremental Generation with {provider_name}...")
+                llm = ChatOpenAI(api_key=os.getenv("MISTRAL_API_KEY"), base_url="https://api.mistral.ai/v1", model="mistral-medium")
+
+            if not llm:
+                print(f"⚠️ {provider_name}: No API key found, skipping.")
+                continue
+
+            chain = optimized_prompt | llm
+
+            buffer = ""
+            current_depth = 0
+            in_string = False
+            escape = False
+
+            chunk_count = 0
+            yielded_any = False
+            async for chunk in chain.astream({
+                "question_count": question_count,
+                "topics": topics,
+                "subjects": subjects,
+                "difficulty": difficulty,
+                "language": language,
+                "user_level": valid_context.get("user_level", "Beginner"),
+                "weak_topics": valid_context.get("weak_topics", "None")
+            }):
+                chunk_count += 1
+                content = getattr(chunk, 'content', '')
+                if chunk_count <= 5 or chunk_count % 10 == 0:
+                   print(f"DEBUG: {provider_name} Chunk {chunk_count}: {repr(content)}")
+
+                for char in content:
+                    if char == '"' and not escape:
+                        in_string = not in_string
+
+                    if not in_string:
+                        if char == '{':
+                            current_depth += 1
+                        elif char == '}':
+                            current_depth -= 1
+
+                    buffer += char
+                    escape = (char == '\\' and not escape)
+
+                    if not in_string and current_depth == 0 and char == '}':
+                        # Possible object end
+                        try:
+                            # Clean buffer to start at first {
+                            start_idx = buffer.find('{')
+                            if start_idx != -1:
+                                obj_str = buffer[start_idx:]
+                                question = json.loads(obj_str)
+                                print(f"✅ Parsed incremental question from {provider_name}")
+                                yield question
+                                yielded_any = True
+                                buffer = "" # Clear buffer for next object
+                        except Exception as e:
+                            # print(f"DEBUG: JSON parse yielded error: {e}")
+                            pass # Incomplete or invalid JSON object, keep buffering
+
+            print(f"🏁 {provider_name} stream finished. Total chunks: {chunk_count}")
+            if yielded_any:
+                resilience_manager.record_success(provider_name)
+                return # Successfully finished with one provider
+
+            print(f"⚠️ {provider_name} produced no questions, trying next...")
+
+        except Exception as e:
+            err_str = str(e).lower()
+            is_rate_limit = "429" in err_str or "rate_limit" in err_str or "quota" in err_str or "too many requests" in err_str
+            last_error = e
+
+            print(f"❌ {provider_name} incremental error: {err_str[:200]}")
+
+            if is_rate_limit:
+                resilience_manager.record_error(provider_name, is_rate_limit=True)
+                print(f"🚫 {provider_name} Rate Limited. Switching to next provider.")
+            else:
+                resilience_manager.record_error(provider_name)
+                print(f"⚠️ {provider_name} unexpected error, trying next...")
+
+            continue
+
+    yield None # Signal failure
+
 async def evaluate_exam_submission(submission_data: dict) -> dict:
     """
     Evaluates the submission using LLM with fallback strategy.
@@ -373,7 +532,7 @@ async def evaluate_exam_submission(submission_data: dict) -> dict:
     """
 
     # Define fallback order
-    providers = [LLMProvider.GROQ, LLMProvider.GEMINI, LLMProvider.OPENAI, LLMProvider.CLAUDE]
+    providers = [LLMProvider.GEMINI, LLMProvider.GROQ, LLMProvider.MISTRAL]
 
     for provider_enum in providers:
         if provider_enum not in registry._models:

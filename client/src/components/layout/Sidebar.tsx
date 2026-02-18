@@ -28,6 +28,10 @@ const NAV_ITEMS = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
+const ADMIN_NAV_ITEMS = [
+  { label: "Manage Exams", href: "/admin/exams", icon: BookOpen },
+];
+
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -35,6 +39,13 @@ export function Sidebar() {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isAdmin = user?.role === "admin";
+  const allNavItems = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
 
   const handleLogout = async () => {
     await dispatch(logoutUser());
@@ -73,7 +84,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {allNavItems.map((item) => {
           const isActive = mounted ? (pathname === item.href || pathname.startsWith(`${item.href}/`)) : false;
           return (
             <Link

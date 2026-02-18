@@ -35,9 +35,9 @@ func main() {
 	}
 
 	// Run migrations
-	if err := database.Migrate(db); err != nil {
-		logger.Fatal(err, "Failed to run migrations")
-	}
+	// if err := database.Migrate(db); err != nil {
+	// 	logger.Fatal(err, "Failed to run migrations")
+	// }
 
 	// Seed sample data
 	if err := database.SeedExams(db); err != nil {

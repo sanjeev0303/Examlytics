@@ -1,33 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/nextjs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { StatsCard } from "@/components/StatsCard";
 
-interface Exam {
-    id: string;
-    title: string;
-    difficulty: string;
-    status: string;
-    created_at: string;
-    question_count: number;
-}
-
 export default function ExamsPage() {
-    const { getToken } = useAuth();
-
     // Fetch Exams
     const { data: exams, isLoading } = useQuery({
         queryKey: ['exams-list'],
         queryFn: async () => {
-            const token = await getToken();
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/exams`, {
-                 // Note: The public endpoint /exams implies public exams or all exams?
-                 // Backend View: registerExamRoutes -> h.GetExams
-                 // I should check if it returns all exams for admin.
-                headers: { Authorization: `Bearer ${token}` }
+                credentials: "include"
             });
             if (!res.ok) throw new Error("Failed to fetch exams");
             return res.json();

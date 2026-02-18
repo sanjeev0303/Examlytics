@@ -3,16 +3,16 @@ package dto
 import "time"
 
 type StartExamRequest struct {
-	ExamID        string   `json:"examId"`        // Optional if custom
-	Type          string   `json:"type"`          // JOB, CODING, etc.
-	Mode          string   `json:"mode"`          // MCQ, SUBJECTIVE, MIXED
-	Difficulty    string   `json:"difficulty"`    // EASY, MEDIUM, HARD
-	QuestionCount int      `json:"questionCount"` // 10, 20, 30
-	TopicID       string   `json:"topicId"`       // For focused improvement
-	Language      string   `json:"language"`      // Python, Java, etc.
-	JobCategory   string   `json:"jobCategory"`   // SQL, System Design
-	Subjects      []string `json:"subjects"`      // Physics, Chemistry
-	Source        string   `json:"source"`        // source of request (e.g. load_test)
+	ExamID        string   `json:"exam_id"`        // Optional if custom
+	Type          string   `json:"type"`           // JOB, CODING, etc.
+	Mode          string   `json:"mode"`           // MCQ, SUBJECTIVE, MIXED
+	Difficulty    string   `json:"difficulty"`     // EASY, MEDIUM, HARD
+	QuestionCount int      `json:"question_count"` // 10, 20, 30
+	TopicID       string   `json:"topic_id"`       // For focused improvement
+	Language      string   `json:"language"`       // Python, Java, etc.
+	JobCategory   string   `json:"job_category"`   // SQL, System Design
+	Subjects      []string `json:"subjects"`       // Physics, Chemistry
+	Source        string   `json:"source"`         // source of request (e.g. load_test)
 }
 
 type AnswerSubmission struct {
@@ -85,10 +85,11 @@ type ExamSessionResponse struct {
 }
 
 type ExamGenerationJob struct {
-	JobID     string           `json:"jobId"`
-	UserID    string           `json:"userId"`
-	Request   StartExamRequest `json:"request"`
-	CreatedAt time.Time        `json:"createdAt"`
+	JobID       string           `json:"jobId"`
+	UserID      string           `json:"userId"`
+	Preferences StartExamRequest `json:"preferences"`
+	Source      string           `json:"source"`
+	CreatedAt   int64            `json:"createdAt"` // Unix timestamp
 }
 
 type ExamSubmissionJob struct {

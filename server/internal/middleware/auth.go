@@ -6,6 +6,7 @@ import (
 
 	"github.com/examlytics/server/internal/dto"
 	"github.com/examlytics/server/internal/service"
+	"github.com/examlytics/server/pkg/logger"
 	"github.com/examlytics/server/pkg/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -35,16 +36,12 @@ func (m *JWTAuth) Authenticate() gin.HandlerFunc {
 			}
 		}
 
-		if accessToken == "" {
-			c.Next()
-			return
-		}
-
-		// 2. Validate Access Token
 		claims, err := utils.ValidateToken(accessToken)
 		if err == nil {
+			logger.Infof("Authenticated user: %s (ID used)", claims.UserID)
 			c.Set("userID", claims.UserID)
 			c.Set("role", claims.Role)
+			c.Set("raw_token", accessToken) // Preserve for gRPC propagation
 			c.Next()
 			return
 		}

@@ -1,23 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 
 export default function AnalyticsPage() {
-    const { getToken } = useAuth();
-
-    // Mock Data for now as backend aggregation might not be fully ready for global stats
-    // or we can try to fetch from a new endpoint if I implemented it.
-    // In step 85 (Router), I saw: r.engine.GET("/weak-topics", h.GetWeakTopics) - but that was under /users/weak-topics (per user?)
-    // Ah, Step 85: users.GET("/weak-topics", h.GetWeakTopics) inside registerUserRoutes.
-    // It calls h.userService.GetUserWeakTopics using context clerkID. So it's per user.
-    // I need GLOBAL weak topics.
-    // I haven't implemented a global weak topics endpoint in backend yet.
-    // I'll stick to mock data for the UI structure as requested by "Implement incomplete tasks" implies finishing the UI primarily.
-    // But ideally I should implement the backend.
+    // Note: The internal auth is handled via HttpOnly cookies (credentials: "include")
+    // or we can use useAppSelector if we need user info.
 
     const weakTopicsData = [
         { topic: "Thermodynamics", failureRate: 42, students: 120 },

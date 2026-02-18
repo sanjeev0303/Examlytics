@@ -1,0 +1,10 @@
+Usage: uvicorn [OPTIONS] APP
+Try 'uvicorn --help' for help.
+
+Error: Got unexpected extra arguments (> ai-service/ai_service.log 2>&1 & sleep 2)
+stat ./server/main.go: no such file or directory
+stat ./server/main.go: no such file or directory
+Usage: uvicorn [OPTIONS] APP
+Try 'uvicorn --help' for help.
+
+Error: Got unexpected extra arguments (> ai-service/ai_service.log 2>&1 & sleep 2)

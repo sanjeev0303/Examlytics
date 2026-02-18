@@ -10,30 +10,6 @@ import (
 )
 
 // ExamRepository defines interface for exam data access
-type ExamRepository interface {
-	FindAllExams(ctx context.Context) ([]*domain.Exam, error)
-	FindExamByID(ctx context.Context, id string) (*domain.Exam, error)
-	FindAllTopics(ctx context.Context) ([]*domain.Topic, error)
-	CreateExamSession(session *domain.ExamSession) error
-	FindExamSessionByID(ctx context.Context, id string) (*domain.ExamSession, error)
-	UpdateExamSession(session *domain.ExamSession) error
-	SaveSessionAnswers(answers []*domain.SessionAnswer) error
-	FindQuestionsByExamID(ctx context.Context, examID string) ([]*domain.Question, error)
-	FindQuestionByID(ctx context.Context, id string) (*domain.Question, error)
-	FindQuestionsByIDs(ctx context.Context, ids []string) ([]*domain.Question, error) // Batch fetch
-	CountExams(ctx context.Context) (int64, error)
-	CountQuestions(ctx context.Context) (int64, error)
-	FindAnswersBySessionID(ctx context.Context, sessionID string) ([]*domain.SessionAnswer, error)
-	FindSessionsByUserID(ctx context.Context, userID string) ([]*domain.ExamSession, error)
-	GetUserWeakTopics(ctx context.Context, userID string) ([]*domain.UserWeakTopic, error)
-	UpsertUserWeakTopic(ctx context.Context, topic *domain.UserWeakTopic) error
-	UpsertUserTopicAggregate(ctx context.Context, agg *domain.UserTopicAggregate) error
-	CreateExamTopicStats(ctx context.Context, stats []*domain.ExamTopicStats) error
-	FindUserTopicAggregate(ctx context.Context, userID, topic string) (*domain.UserTopicAggregate, error)
-	FindUserTopicAggregates(ctx context.Context, userID string) ([]*domain.UserTopicAggregate, error)
-	GetAttendedExamTypes(ctx context.Context, userID string) ([]string, error)
-	ListPublic(limit, offset int, types []string) ([]*domain.Exam, error)
-}
 
 // PostgresExamRepository implements ExamRepository for PostgreSQL
 type PostgresExamRepository struct {
@@ -41,8 +17,36 @@ type PostgresExamRepository struct {
 }
 
 // NewPostgresExamRepository creates a new PostgresExamRepository
-func NewPostgresExamRepository(db *gorm.DB) ExamRepository {
+func NewPostgresExamRepository(db *gorm.DB) domain.ExamRepository {
 	return &PostgresExamRepository{db: db}
+}
+
+// GetByID retrieves an exam by ID
+func (r *PostgresExamRepository) GetByID(ctx context.Context, id string) (*domain.Exam, error) {
+	return r.FindExamByID(ctx, id)
+}
+
+// Create creates a new exam
+func (r *PostgresExamRepository) Create(ctx context.Context, exam *domain.Exam) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return r.db.WithContext(ctx).Create(exam).Error
+}
+
+// Update updates an exam
+func (r *PostgresExamRepository) Update(ctx context.Context, exam *domain.Exam) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return r.db.WithContext(ctx).Save(exam).Error
+}
+
+// ListByUser returns exams for a user
+func (r *PostgresExamRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*domain.Exam, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var exams []*domain.Exam
+	err := r.db.WithContext(ctx).Where("created_by = ?", userID).Limit(limit).Offset(offset).Find(&exams).Error
+	return exams, err
 }
 
 // FindAllExams retrieves all exams

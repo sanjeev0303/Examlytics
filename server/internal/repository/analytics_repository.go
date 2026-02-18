@@ -10,35 +10,20 @@ import (
 )
 
 // AnalyticsRepository handles persistence for analytics domain models
-type AnalyticsRepository interface {
-	// Learning Snapshots
-	CreateSnapshot(ctx context.Context, snapshot *domain.LearningSnapshot) error
-	GetUserSnapshots(ctx context.Context, userID string, limit int) ([]*domain.LearningSnapshot, error)
-
-	// Topic Mastery History
-	UpsertTopicMasteryHistory(ctx context.Context, history *domain.TopicMasteryHistory) error
-	GetTopicHistory(ctx context.Context, userID, topic string, limit int) ([]*domain.TopicMasteryHistory, error)
-
-	// Interview Readiness
-	UpsertInterviewReadiness(ctx context.Context, readiness *domain.InterviewReadiness) error
-	GetInterviewReadiness(ctx context.Context, userID string) (*domain.InterviewReadiness, error)
-
-	// Question Stats
-	UpsertQuestionStats(ctx context.Context, stats *domain.QuestionStats) error
-	GetQuestionStats(ctx context.Context, questionHash string) (*domain.QuestionStats, error)
-
-	// Spaced Repetition
-	UpsertTopicSchedule(ctx context.Context, schedule *domain.UserTopicSchedule) error
-	GetDueTopics(ctx context.Context, userID string) ([]*domain.UserTopicSchedule, error)
-	GetTopicSchedule(ctx context.Context, userID, topic string) (*domain.UserTopicSchedule, error)
-}
 
 type analyticsRepositoryImpl struct {
 	db *gorm.DB
 }
 
-func NewAnalyticsRepository(db *gorm.DB) AnalyticsRepository {
+func NewAnalyticsRepository(db *gorm.DB) domain.AnalyticsRepository {
 	return &analyticsRepositoryImpl{db: db}
+}
+
+// RecordAttempt records a new exam attempt
+func (r *analyticsRepositoryImpl) RecordAttempt(ctx context.Context, attempt *domain.ExamAttempt) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return r.db.WithContext(ctx).Create(attempt).Error
 }
 
 // Learning Snapshots

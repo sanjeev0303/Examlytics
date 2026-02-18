@@ -106,9 +106,10 @@ make docker-run
 - `POST /users` - Create a new user
 
 ### Authentication
-- `POST /auth/sync` - Sync user from Clerk
+- `POST /auth/register` - Register a new user
+- `POST /auth/login` - Login user
+- `POST /auth/logout` - Logout user
 - `GET /auth/me` - Get current user
-- `GET /auth/role` - Get current user's role
 
 ## 🔒 Security Features
 
@@ -138,21 +139,7 @@ make test-coverage
 | `ENV` | Environment (development/production) | development |
 | `LOG_LEVEL` | Logging level | info |
 | `DATABASE_URL` | PostgreSQL connection string | - |
-| `CLERK_SECRET_KEY` | Clerk authentication secret | - |
 | `GEOIP_DB_PATH` | Path to GeoIP database | ./data/GeoLite2-Country.mmdb |
-
-## 🔄 Migration from Node.js
-
-This Go server replaces the Node.js/Express server with equivalent functionality:
-
-| Express Feature | Go Equivalent |
-|----------------|---------------|
-| express-rate-limit | Custom RateLimiter middleware |
-| helmet | Gin's security headers |
-| cors | Gin CORS middleware |
-| pino | zerolog |
-| Prisma | GORM |
-| Clerk SDK | Custom JWT validation |
 
 ## 📄 License
 

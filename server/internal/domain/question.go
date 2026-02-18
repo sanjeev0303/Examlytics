@@ -74,11 +74,3 @@ func (q *Question) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
-
-// QuestionRepository defines methods to interact with questions
-type QuestionRepository interface {
-	Create(question *Question) error
-	FindByID(id string) (*Question, error)
-	FindByTopic(topicID string, limit int) ([]*Question, error)
-	GetRandomQuestions(count int, topicIDs []string, difficulty Difficulty) ([]*Question, error)
-}

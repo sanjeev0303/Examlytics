@@ -6,24 +6,10 @@ import (
 	"time"
 
 	"github.com/examlytics/server/internal/domain"
-	"github.com/examlytics/server/internal/dto"
 	"gorm.io/gorm"
 )
 
 // UserRepository defines interface for user data access
-type UserRepository interface {
-	Create(ctx context.Context, data *dto.CreateUserRequest, hashedPassword string) (*domain.User, error)
-	FindAll(ctx context.Context) ([]*domain.User, error)
-	FindByID(ctx context.Context, id string) (*domain.User, error)
-	FindByEmail(ctx context.Context, email string) (*domain.User, error)
-	Update(ctx context.Context, user *domain.User) (*domain.User, error)
-	Delete(ctx context.Context, id string) error
-	SavePreferences(ctx context.Context, prefs *domain.UserPreference) error
-	GetPreferences(ctx context.Context, userID string) (*domain.UserPreference, error)
-	CountUsers(ctx context.Context) (int64, error)
-	FindAIContextByUserID(ctx context.Context, userID string) (*domain.UserAIContext, error)
-	GetTopicAggregates(ctx context.Context, userID string) ([]*domain.UserTopicAggregate, error)
-}
 
 // PostgresUserRepository implements UserRepository for PostgreSQL
 type PostgresUserRepository struct {
@@ -31,28 +17,16 @@ type PostgresUserRepository struct {
 }
 
 // NewPostgresUserRepository creates a new PostgresUserRepository
-func NewPostgresUserRepository(db *gorm.DB) UserRepository {
+func NewPostgresUserRepository(db *gorm.DB) domain.UserRepository {
 	return &PostgresUserRepository{db: db}
 }
 
 // Create creates a new user in the database
-func (r *PostgresUserRepository) Create(ctx context.Context, data *dto.CreateUserRequest, hashedPassword string) (*domain.User, error) {
-	user := &domain.User{
-		Email:     data.Email,
-		Password:  hashedPassword,
-		FirstName: data.FirstName,
-		LastName:  data.LastName,
-		ImageURL:  data.ImageURL,
-		Role:      domain.RoleUser,
-	}
+func (r *PostgresUserRepository) Create(ctx context.Context, user *domain.User) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
-		return nil, err
-	}
-
-	return user, nil
+	return r.db.WithContext(ctx).Create(user).Error
 }
 
 // FindAll retrieves all users from the database
@@ -66,7 +40,12 @@ func (r *PostgresUserRepository) FindAll(ctx context.Context) ([]*domain.User, e
 	return users, nil
 }
 
-// FindByID retrieves a user by their ID
+// GetByID retrieves a user by their ID
+func (r *PostgresUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
+	return r.FindByID(ctx, id)
+}
+
+// FindByID retrieves a user by their ID (aliased for compatibility)
 func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -80,7 +59,19 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*doma
 	return &user, nil
 }
 
-// FindByEmail retrieves a user by their email
+// Update updates an existing user
+func (r *PostgresUserRepository) Update(ctx context.Context, user *domain.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return r.db.WithContext(ctx).Save(user).Error
+}
+
+// GetByEmail retrieves a user by their email
+func (r *PostgresUserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	return r.FindByEmail(ctx, email)
+}
+
+// FindByEmail retrieves a user by their email (aliased for compatibility)
 func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -92,16 +83,6 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 		return nil, err
 	}
 	return &user, nil
-}
-
-// Update updates an existing user
-func (r *PostgresUserRepository) Update(ctx context.Context, user *domain.User) (*domain.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	if err := r.db.WithContext(ctx).Save(user).Error; err != nil {
-		return nil, err
-	}
-	return user, nil
 }
 
 // Delete removes a user from the database

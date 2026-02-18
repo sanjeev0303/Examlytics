@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +16,6 @@ import {
 
 interface UserDetail {
     id: string;
-    clerkId: string;
     email: string;
     firstName: string;
     lastName: string;
@@ -38,19 +36,13 @@ interface AIContext {
 
 export default function UserDetailPage() {
     const { id } = useParams();
-    const { getToken } = useAuth();
 
     // Fetch User Basics
     const { data: user, isLoading: userLoading } = useQuery<UserDetail>({
         queryKey: ['user', id],
         queryFn: async () => {
-            const token = await getToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/${id}`, { // Oops I need to implement get user by id endpoint in backend first? Or I can use list and filter? No better implement get by ID.
-            // Wait, previous design doc said GET /admin/users/:id/context exists.
-            // I need check if GET /users/:id exists. UserRepository has FindByID. UserHandler doesn't seem to have GetUserByID exposed.
-            // I should double check backend handler.
-            // Assuming I'll fix that. For now let's write the frontend code.
-                 headers: { Authorization: `Bearer ${token}` }
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/${id}`, {
+                 credentials: "include"
             });
             // Actually let's assume I will implement it.
              return res.json();
@@ -62,9 +54,8 @@ export default function UserDetailPage() {
     const { data: aiContext, isLoading: aiLoading } = useQuery<AIContext>({
         queryKey: ['user-ai-context', id],
         queryFn: async () => {
-            const token = await getToken();
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/admin/users/${id}/ai-context`, {
-                headers: { Authorization: `Bearer ${token}` }
+                credentials: "include"
             });
             if (res.status === 404) return null;
             if (!res.ok) throw new Error("Failed to fetch AI context");

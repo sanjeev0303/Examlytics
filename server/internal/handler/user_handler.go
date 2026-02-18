@@ -57,13 +57,13 @@ func (h *UserHandler) OnboardUser(c *gin.Context) {
 		return
 	}
 
-	clerkID, exists := c.Get("clerkUserID")
-	if !exists || clerkID == "" {
+	userID, exists := c.Get("userID")
+	if !exists || userID == "" {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "Unauthorized"})
 		return
 	}
 
-	if err := h.userService.OnboardUser(c.Request.Context(), clerkID.(string), req); err != nil {
+	if err := h.userService.OnboardUser(c.Request.Context(), userID.(string), req); err != nil {
 		logger.Error(err, "Error onboarding user")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Internal Server Error"})
 		return
@@ -86,13 +86,13 @@ func (h *UserHandler) GetAdminStats(c *gin.Context) {
 
 // GetWeakTopics handles GET /users/weak-topics
 func (h *UserHandler) GetWeakTopics(c *gin.Context) {
-	clerkID, exists := c.Get("clerkUserID")
-	if !exists || clerkID == "" {
+	userID, exists := c.Get("userID")
+	if !exists || userID == "" {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "Unauthorized"})
 		return
 	}
 
-	topics, err := h.userService.GetUserWeakTopics(c.Request.Context(), clerkID.(string))
+	topics, err := h.userService.GetUserWeakTopics(c.Request.Context(), userID.(string))
 	if err != nil {
 		logger.Error(err, "Error fetching weak topics")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Internal Server Error"})

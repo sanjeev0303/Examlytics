@@ -54,7 +54,7 @@ export default function SettingsPage() {
             <Card className="shadow-none border border-border/50 bg-card">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">Profile & Security</CardTitle>
-                    <CardDescription>Managed securely by Clerk.</CardDescription>
+                    <CardDescription>Manage your profile and security settings.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex justify-center py-4">

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { AIParametersForm } from "@/components/exams/AIParametersForm";
 import { ExamSummaryCard } from "@/components/exams/ExamSummaryCard";
 import { ExamTypeSelector } from "@/components/exams/ExamTypeSelector";
+import { ExamGenerationLoader } from "@/components/exams/ExamGenerationLoader";
 
 
 export function CreateExamForm() {
@@ -16,6 +17,7 @@ export function CreateExamForm() {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
 
   // Form State
   const [examType, setExamType] = useState("JOB");
@@ -51,8 +53,8 @@ export function CreateExamForm() {
         type: examType,
         mode: mode.toUpperCase(),
         difficulty: difficulty,
-        questionCount: questionCount[0],
-        topicId: topicFocus || (examType === "CODING" ? language : examType === "JOB" ? jobCategory : "General"), // Fallback topic
+        question_count: questionCount[0],
+        topic_id: topicFocus || (examType === "CODING" ? language : examType === "JOB" ? jobCategory : "General"), // Fallback topic
         language: examType === "CODING" ? language : undefined,
         jobCategory: examType === "JOB" ? jobCategory : undefined,
         subjects: (examType === "JEE" || examType === "NEET") ? subjects : undefined,
@@ -84,39 +86,8 @@ export function CreateExamForm() {
       const res = await api.startExam(payload as Parameters<typeof api.startExam>[0]);
 
       if (res && res.jobId) {
-        const jobId = res.jobId;
+        setJobId(res.jobId);
         toast.success("Exam generation started!");
-
-        // Poll for completion
-        const pollInterval = setInterval(async () => {
-          try {
-            const statusRes = await api.getExamStatus(jobId);
-
-            if (statusRes.status === "READY") {
-              clearInterval(pollInterval);
-              toast.success("Exam ready! Redirecting...");
-              // Navigate to exam session
-              router.push(`/exam/${jobId}`);
-            } else if (statusRes.status === "FAILED") {
-              clearInterval(pollInterval);
-              toast.error("Exam generation failed");
-              setLoading(false);
-            } else {
-              toast.info(`Generating exam... (${statusRes.status})`);
-            }
-          } catch (pollError) {
-            console.error("Polling error:", pollError);
-          }
-        }, 2000); // Poll every 2 seconds
-
-        // Timeout after 60 seconds
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          if (loading) {
-            toast.error("Exam generation timed out");
-            setLoading(false);
-          }
-        }, 60000);
       } else {
          toast.error("Failed to start exam generation");
          setLoading(false);
@@ -125,10 +96,23 @@ export function CreateExamForm() {
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong");
-    } finally {
       setLoading(false);
     }
   };
+
+  if (jobId) {
+    return (
+      <ExamGenerationLoader
+        jobId={jobId}
+        onComplete={() => router.push(`/exam/${jobId}`)}
+        onFail={(err) => {
+          toast.error(err || "Generation failed");
+          setJobId(null);
+          setLoading(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="grid gap-6">
