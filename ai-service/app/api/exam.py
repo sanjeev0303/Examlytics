@@ -108,7 +108,29 @@ async def generate_exam(request: ExamGenerateRequest):
             "subjects": request.subjects
         }
 
-        questions_data = await generate_exam_content(preferences, context=prompt_context)
+        from app.graph.builder import build_exam_generation_graph
+        graph = build_exam_generation_graph()
+        initial_state = {
+            "session_id": str(uuid4()),
+            "user_id": str(user_id),
+            "thread_id": str(uuid4()),
+            "exam_type": request.exam_type,
+            "preferences": preferences,
+            "retrieved_docs": [],
+            "compressed_context": [],
+            "generated_questions": [],
+            "validated_questions": [],
+            "analytics": {},
+            "metadata": {},
+            "token_usage": {},
+            "streaming_status": "started",
+            "error": None,
+            "retry_count": 0,
+            "cache_hit": False
+        }
+        
+        final_state = await graph.ainvoke(initial_state)
+        questions_data = final_state.get("validated_questions", [])
 
         if not questions_data:
             raise HTTPException(status_code=500, detail="AI failed to generate questions")

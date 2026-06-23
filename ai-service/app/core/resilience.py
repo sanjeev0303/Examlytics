@@ -64,6 +64,12 @@ class AIResilienceManager:
             return False
         return True
 
+    def can_execute(self, provider: str) -> bool:
+        return self.check_circuit(provider)
+
+    def record_failure(self, provider: str):
+        self.record_error(provider, is_rate_limit=True)
+
     def reset_all_circuits(self):
         """
         Reset all circuits on service boot.

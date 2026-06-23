@@ -328,47 +328,50 @@ def process_job(job):
             }
             print(f"🧠 No prior context for {session_id}. Using defaults.")
 
-        # 3. Generate Content using AI
-        from app.core.llm import generate_exam_incremental
+        # 3. Generate Content using LangGraph
+        from app.graph.builder import build_exam_generation_graph
+        print(f"🤖 Exam Worker: Generating questions via LangGraph for {session_id}...")
 
-        print(f"🤖 Exam Worker: Generating questions via AI for {session_id}...")
-
-        questions_json = []
-
-        async def run_generation():
-            nonlocal questions_json
-            async for q_data in generate_exam_incremental(preferences, context=prompt_context):
-                if q_data is None:
-                    raise Exception("AI failed to generate questions (Exhausted/RateLimit)")
-
-                # Create formatted question
-                q_id = str(uuid.uuid4())
-                question = {
-                    "id": q_id,
-                    "text": q_data.get("question") or q_data.get("problem_statement"),
-                    "options": q_data.get("options") or [],
-                    "type": q_data.get("type", "MCQ"),
-                    "correct_answer": q_data.get("correct_answer"),
-                    "difficulty": q_data.get("difficulty", "Medium"),
-                    "explanation": q_data.get("explanation")
-                }
-                questions_json.append(question)
-
-                # Publish to Redis channel for live streaming
-                r.publish(f"exam:stream:{session_id}", json.dumps({
-                    "type": "question",
-                    "index": len(questions_json) - 1,
-                    "total": preferences.get("question_count", 5),
-                    "data": question
-                }))
-                print(f"📡 Published question {len(questions_json)} to stream")
-
-        log_to_file(f"Starting AI generation for {session_id}")
-        asyncio.run(run_generation())
-
+        graph = build_exam_generation_graph()
+        initial_state = {
+            "session_id": session_id,
+            "user_id": str(session.user_id),
+            "thread_id": str(uuid.uuid4()),
+            "exam_type": preferences.get("type", "Quiz"),
+            "preferences": preferences,
+            "retrieved_docs": [],
+            "compressed_context": [],
+            "generated_questions": [],
+            "validated_questions": [],
+            "analytics": {},
+            "metadata": {},
+            "token_usage": {},
+            "streaming_status": "started",
+            "error": None,
+            "retry_count": 0,
+            "cache_hit": False
+        }
+        
+        final_state = graph.invoke(initial_state)
+        questions_json = final_state.get("validated_questions", [])
+        
         if not questions_json:
-             log_to_file(f"⚠️ AI generation returned empty for {session_id}")
+             log_to_file(f"⚠️ AI generation returned empty for {session_id}. Error: {final_state.get('error')}")
              raise Exception("AI failed to generate questions (Empty Result)")
+
+        # Publish each question for backward compatibility stream
+        for idx, q in enumerate(questions_json):
+            if "id" not in q:
+                q["id"] = str(uuid.uuid4())
+            if "text" not in q and "question" in q:
+                q["text"] = q["question"]
+                
+            r.publish(f"exam:stream:{session_id}", json.dumps({
+                "type": "question",
+                "index": idx,
+                "total": len(questions_json),
+                "data": q
+            }))
 
         # 4. Update Session to READY
         session.questions = questions_json

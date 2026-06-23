@@ -1,14 +1,37 @@
 import os
 import redis.asyncio as redis
 from dotenv import load_dotenv
+import hashlib
+import json
 
 load_dotenv()
+
+class SemanticCache:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        # Setup vector index or simple heuristics here
+        
+    async def get_semantic(self, query: str):
+        # MVP: Hash based match for exact semantics
+        key = f"semantic:{hashlib.md5(query.encode()).hexdigest()}"
+        try:
+            return await self.redis.get(key)
+        except:
+            return None
+        
+    async def set_semantic(self, query: str, value: str, ttl=86400):
+        key = f"semantic:{hashlib.md5(query.encode()).hexdigest()}"
+        try:
+            await self.redis.set(key, value, ex=ttl)
+        except:
+            pass
 
 class RedisCache:
     _instance = None
 
     def __init__(self):
         self.redis = None
+        self.semantic = None
 
     @classmethod
     def get_instance(cls):
@@ -19,8 +42,8 @@ class RedisCache:
     async def connect(self):
         if not self.redis:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            # decode_responses=True ensures we get strings, not bytes
             self.redis = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+            self.semantic = SemanticCache(self.redis)
             print(f"✅ AI Service: Connected to Redis Cache at {redis_url}")
 
     async def close(self):
