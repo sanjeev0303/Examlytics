@@ -22,48 +22,28 @@ class SemanticResponse(BaseModel):
 
 # --- Helper: Semantic AI Evaluation ---
 async def semantic_ai(payload: SemanticRequest) -> SemanticResponse:
-    prompt = f"""
-You are an expert technical interviewer.
-
-Question:
-{payload.question}
-
-Correct Answer:
-{payload.correctAnswer}
-
-User Answer:
-{payload.userAnswer}
-
-Task:
-1. Decide whether the user's answer is semantically correct.
-2. Minor wording differences are allowed.
-3. If the core meaning matches, mark it correct.
-4. If partially correct, mark incorrect but with lower confidence (e.g. 0.5-0.7).
-
-Return ONLY valid JSON in this format:
-
-{{
-  "isCorrect": true | false,
-  "confidence": 0.0 - 1.0,
-  "explanation": {{
-    "whyUserAnswerIsWrong": "...",
-    "whyCorrectAnswerIsRight": "...",
-    "coreConcept": "...",
-    "interviewTip": "..."
-  }}
-}}
-"""
+    from langchain_core.prompts import ChatPromptTemplate
+    from app.models.router import router
+    from app.schemas.structured_schemas import SemanticCheckSchema
+    
+    llm = router.get_model("validation").with_structured_output(SemanticCheckSchema)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert technical interviewer. Decide whether the user's answer is semantically correct. Minor wording differences are allowed. If the core meaning matches, mark it correct. If partially correct, mark incorrect but with lower confidence (e.g. 0.5-0.7)."),
+        ("user", f"Question:\n{payload.question}\n\nCorrect Answer:\n{payload.correctAnswer}\n\nUser Answer:\n{payload.userAnswer}")
+    ])
+    
+    chain = prompt | llm
     try:
-        # Assuming generate_content_async(prompt) returns text response from LLM
-        response_text = await generate_content_async(prompt)
-        # Parse JSON
-        cleaned_text = response_text.strip().replace("```json", "").replace("```", "")
-        data = json.loads(cleaned_text)
-
+        res = await chain.ainvoke({})
         return SemanticResponse(
-            isCorrect=data.get("isCorrect", False),
-            confidence=data.get("confidence", 0.0),
-            explanation=data.get("explanation", {})
+            isCorrect=res.is_semantically_correct,
+            confidence=res.confidence,
+            explanation={
+                "whyUserAnswerIsWrong": res.reasoning if not res.is_semantically_correct else "",
+                "whyCorrectAnswerIsRight": "It matches the core meaning." if res.is_semantically_correct else res.reasoning,
+                "coreConcept": "N/A",
+                "interviewTip": "N/A"
+            }
         )
     except Exception as e:
         print(f"❌ Semantic AI Error: {e}")

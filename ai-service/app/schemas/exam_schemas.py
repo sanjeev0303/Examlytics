@@ -16,6 +16,9 @@ class ExamGenerateRequest(BaseModel):
     question_count: int = Field(15, alias="questionCount")
     difficulty: DifficultyConfig = Field(default_factory=DifficultyConfig)
     topics: List[str] = []
+    language: Optional[str] = None
+    job_category: Optional[str] = Field(None, alias="jobCategory")
+    subjects: Optional[List[str]] = []
 
     class Config:
         populate_by_name = True

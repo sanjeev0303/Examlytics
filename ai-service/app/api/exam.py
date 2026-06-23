@@ -117,59 +117,69 @@ async def generate_exam(request: ExamGenerateRequest):
             "exam_type": request.exam_type,
             "preferences": preferences,
             "retrieved_docs": [],
+            "expanded_queries": [],
             "compressed_context": [],
             "generated_questions": [],
             "validated_questions": [],
+            "difficulty_scores": [],
+            "bloom_scores": [],
+            "weak_topics": [],
+            "recommendations": [],
+            "events": [],
+            "confidence_scores": [],
+            "should_regenerate": False,
             "analytics": {},
             "metadata": {},
             "token_usage": {},
             "streaming_status": "started",
             "error": None,
             "retry_count": 0,
-            "cache_hit": False
+            "cache_hit": False,
+            "cache_key": exam_hash
         }
         
-        final_state = await graph.ainvoke(initial_state)
-        questions_data = final_state.get("validated_questions", [])
-
-        if not questions_data:
-            raise HTTPException(status_code=500, detail="AI failed to generate questions")
-
-        # 5. Cache & Track Cost
-        CacheService.cache_exam(db, "x", exam_hash, questions_data) # exam_id not needed for hash-cache
-        tracker.track_usage(request.user_id, COST_GENERATION)
-
-        # Create session
-        exam_id = str(uuid4())
+        exam_id = initial_state["session_id"]
+        
+        # Create a placeholder session in DB
         session = ExamSession(
             id=exam_id,
             user_id=user_id,
             type=request.exam_type,
             topic_id=topics_str,
-            total_questions=len(questions_data),
-            status="READY",
-            questions=questions_data,
-            cache_hash=exam_hash # Store for DB fallback
+            total_questions=request.question_count,
+            status="GENERATING",
+            questions=[],
+            cache_hash=exam_hash
         )
         db.add(session)
         db.commit()
-
-        # Format response
-        questions = []
-        for i, q in enumerate(questions_data):
-            questions.append(QuestionItem(
-                id=q.get("id", f"Q{i+1}"),
-                text=q.get("question") or q.get("problem_statement", ""),
-                options=q.get("options", []),
-                type=q.get("type", "MCQ"),
-                difficulty=q.get("difficulty", "MEDIUM"),
-                topic=q.get("topic")
-            ))
-
+        
+        # Run graph in background
+        async def run_graph_task():
+            try:
+                final_state = await graph.ainvoke(initial_state)
+                questions_data = final_state.get("validated_questions", []) or final_state.get("generated_questions", [])
+                
+                # Update DB session
+                db_bg = SessionLocal()
+                try:
+                    sess = db_bg.query(ExamSession).filter(ExamSession.id == exam_id).first()
+                    if sess:
+                        sess.questions = questions_data
+                        sess.status = "READY"
+                        db_bg.commit()
+                finally:
+                    db_bg.close()
+                    
+            except Exception as e:
+                print(f"Graph execution failed: {e}")
+                
+        asyncio.create_task(run_graph_task())
+        
         return ExamGenerateResponse(
             examId=exam_id,
-            questions=questions,
-            timeLimit=request.question_count * 120  # 2 min per question
+            questions=[], # Questions will stream
+            timeLimit=request.question_count * 120
         )
 
     finally:

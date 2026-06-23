@@ -1,26 +1,48 @@
+from typing import List, Dict, Any, Optional
+import os
 import chromadb
-from chromadb.config import Settings
+from chromadb.utils import embedding_functions
+
+CHROMA_DB_DIR = os.getenv("CHROMA_DB_DIR", "./chroma_db")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 class VectorStore:
-    def __init__(self, collection_name="exam_cache"):
-        self.client = chromadb.Client(Settings(is_persistent=True, persist_directory="./chroma_db"))
-        self.collection = self.client.get_or_create_collection(name=collection_name)
+    def __init__(self):
+        self.client = chromadb.PersistentClient(path=CHROMA_DB_DIR)
+        
+        if GEMINI_API_KEY:
+            self.embedding_fn = embedding_functions.GoogleGenerativeAiEmbeddingFunction(api_key=GEMINI_API_KEY)
+        else:
+            self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+            
+        self.collection = self.client.get_or_create_collection(
+            name="knowledge_base",
+            embedding_function=self.embedding_fn
+        )
 
-    def add_documents(self, documents: list[str], embeddings: list[list[float]], metadatas: list[dict] = None, ids: list[str] = None):
-        if ids is None:
-            import uuid
-            ids = [str(uuid.uuid4()) for _ in documents]
-
-        self.collection.add(
+    def add_documents(self, documents: List[str], metadatas: List[Dict[str, Any]], ids: List[str]):
+        self.collection.upsert(
             documents=documents,
-            embeddings=embeddings,
             metadatas=metadatas,
             ids=ids
         )
 
-    def search(self, query_embedding: list[float], n_results: int = 1):
+    def similarity_search(self, query: str, k: int = 4, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results
+            query_texts=[query],
+            n_results=k,
+            where=filter_metadata
         )
-        return results
+        
+        docs = []
+        if results and results['documents'] and len(results['documents']) > 0:
+            for i, doc in enumerate(results['documents'][0]):
+                docs.append({
+                    "id": results['ids'][0][i],
+                    "content": doc,
+                    "metadata": results['metadatas'][0][i] if results['metadatas'] else {},
+                    "score": results['distances'][0][i] if 'distances' in results and results['distances'] else 0
+                })
+        return docs
+
+vector_store = VectorStore()

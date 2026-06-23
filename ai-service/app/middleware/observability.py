@@ -4,6 +4,9 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from prometheus_client import Counter, Histogram, Gauge
 
+from app.core.langsmith_config import configure_langsmith
+configure_langsmith()
+
 # Define Prometheus metrics
 TOKENS_USED = Counter("ai_tokens_total", "Total AI tokens used", ["model", "type"])
 REQUEST_LATENCY = Histogram("ai_request_latency_seconds", "AI Request Latency", ["endpoint"])

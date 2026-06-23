@@ -1,6 +1,6 @@
 from typing import AsyncGenerator
 from langchain_core.prompts import ChatPromptTemplate
-from app.core.llm import registry, LLMProvider
+from app.core.llm import registry
 
 async def stream_explanation(question_text: str, user_answer: str, correct_answer: str) -> AsyncGenerator[str, None]:
     """
