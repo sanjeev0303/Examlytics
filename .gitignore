@@ -34,9 +34,9 @@ bin/
 tmp/
 
 # Documentation & Design
-inventory/
-*.md
-!README.md
+# inventory/
+# *.md
+# !README.md
 *.txt
 
 # Load Testing & Other
