@@ -1,16 +1,15 @@
 import os
 from langchain_mistralai.chat_models import ChatMistralAI
 
-def get_mistral_large():
+def get_mistral_nemo():
     return ChatMistralAI(
-        model="mistral-large-latest",
+        model="open-mistral-nemo",
         temperature=0.2,
         max_retries=3,
         api_key=os.getenv("MISTRAL_API_KEY")
     )
 
-def get_mistral_medium():
-    # mistral-medium is deprecated, using mistral-small or standard
+def get_mistral_small():
     return ChatMistralAI(
         model="mistral-small-latest",
         temperature=0.2,

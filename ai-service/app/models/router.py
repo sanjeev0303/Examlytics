@@ -1,6 +1,6 @@
 from app.models.gemini import get_gemini_flash, get_gemini_pro
-from app.models.groq import get_groq_llama, get_groq_mixtral
-from app.models.mistral import get_mistral_large, get_mistral_medium
+from app.models.groq import get_groq_llama, get_groq_llama_small
+from app.models.mistral import get_mistral_nemo, get_mistral_small
 from app.models.huggingface import get_huggingface_fallback
 from app.core.resilience import resilience_manager
 import logging
@@ -24,10 +24,10 @@ class ModelRouter:
             primary_model = get_gemini_flash
         elif task_type == "validation":
             provider = "mistral"
-            primary_model = get_mistral_large
+            primary_model = get_mistral_nemo
         elif task_type == "analytics":
             provider = "mistral"
-            primary_model = get_mistral_medium
+            primary_model = get_mistral_small
         elif task_type == "streaming":
             provider = "groq"
             primary_model = get_groq_llama
@@ -48,8 +48,8 @@ class ModelRouter:
         
         fallbacks = [
             ("gemini", get_gemini_flash),
-            ("groq", get_groq_mixtral),
-            ("mistral", get_mistral_large),
+            ("groq", get_groq_llama_small),
+            ("mistral", get_mistral_nemo),
             ("huggingface", get_huggingface_fallback)
         ]
         
