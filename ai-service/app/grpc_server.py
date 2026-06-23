@@ -5,6 +5,10 @@ from concurrent import futures
 from typing import AsyncIterable
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load env variables from .env file
+load_dotenv()
 
 # Add proto directory to sys.path
 sys.path.append(os.path.join(os.path.dirname(__file__), "proto"))
