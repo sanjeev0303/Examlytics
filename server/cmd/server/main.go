@@ -68,8 +68,9 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: engine,
 		// Optimization: Increase timeouts to prevent 502s from Load Balancers
+		// For SSE streaming, WriteTimeout must be large or 0. The API uses middleware for standard route timeouts.
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      0, // Disabled for SSE streams
 		IdleTimeout:       120 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 	}

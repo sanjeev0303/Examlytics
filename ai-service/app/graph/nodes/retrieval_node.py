@@ -1,26 +1,48 @@
 from app.graph.state import ExamState
-from app.graph.event_emitter import emitter
 from app.services.vector_store import vector_store
+from app.models.router import router
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_community.vectorstores import Chroma
 
 def retrieve_context(state: ExamState) -> ExamState:
     session_id = state.get("session_id")
-    emitter.emit(session_id, "retrieval_started")
     
-    expanded_queries = state.get("expanded_queries", [state.get("preferences", {}).get("topic_id", "General")])
+    preferences = state.get("preferences", {})
+    topic = preferences.get("topic_id", "General")
     
-    all_docs = []
-    seen_ids = set()
+    # We will use the original topic for MultiQueryRetriever to expand
+    # since it handles the expansion internally.
     
-    for query in expanded_queries:
-        docs = vector_store.hybrid_search(query, n_results=3)
-        for doc in docs:
-            if doc["id"] not in seen_ids:
-                seen_ids.add(doc["id"])
-                all_docs.append(doc)
+    # Create LangChain Chroma vectorstore wrapper
+    lc_vectorstore = Chroma(
+        client=vector_store.client,
+        collection_name="knowledge_base",
+        embedding_function=vector_store.embedding_fn
+    )
+    
+    # Base retriever
+    base_retriever = lc_vectorstore.as_retriever(search_kwargs={"k": 5})
+    
+    # Setup MultiQueryRetriever
+    llm = router.get_model("generation")
+    retriever = MultiQueryRetriever.from_llm(
+        retriever=base_retriever, llm=llm
+    )
+    
+    # Retrieve documents
+    try:
+        retrieved_docs = retriever.invoke(topic)
+        # Convert LangChain Document objects to dicts for our state
+        all_docs = []
+        for d in retrieved_docs:
+            all_docs.append({
+                "content": d.page_content,
+                "metadata": d.metadata
+            })
+    except Exception as e:
+        print(f"Retrieval failed: {e}")
+        all_docs = []
                 
     state["retrieved_docs"] = all_docs
-    state["streaming_status"] = "retrieval_completed"
-    
-    emitter.emit(session_id, "retrieval_completed")
     
     return state

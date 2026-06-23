@@ -62,11 +62,14 @@ def build_exam_generation_graph():
         }
     )
     
-    # We could theoretically parallelize difficulty and bloom, but for simplicity let's sequence them
+    # Run difficulty, bloom, and weak_topics in parallel
     workflow.add_edge("validate", "difficulty")
-    workflow.add_edge("difficulty", "bloom")
-    workflow.add_edge("bloom", "weak_topics")
-    workflow.add_edge("weak_topics", "analytics")
+    workflow.add_edge("validate", "bloom")
+    workflow.add_edge("validate", "weak_topics")
+    
+    # Wait for all parallel branches before analytics
+    workflow.add_edge(["difficulty", "bloom", "weak_topics"], "analytics")
+    
     workflow.add_edge("analytics", "recommendations")
     workflow.add_edge("recommendations", "persist")
     workflow.add_edge("persist", END)

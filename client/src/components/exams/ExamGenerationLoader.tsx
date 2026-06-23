@@ -1,85 +1,46 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, CheckCircle2, FlaskConical, Zap, Target, BarChart, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { useAIWorkflowStream } from "@/hooks/useAIWorkflowStream";
+import { useAIWorkflowStore } from "@/store/ai-workflow-store";
 
-interface ExamStreamingData {
-  count: number;
-  total: number;
-  status: string;
-  preview?: {
-    topic: string;
-    difficulty: string;
-  };
-}
-
-export function ExamGenerationLoader({ jobId, onComplete, onFail }: {
+export const ExamGenerationLoader = React.memo(function ExamGenerationLoader({ jobId, onComplete, onFail }: {
   jobId: string;
   onComplete?: () => void;
   onFail?: (err?: string) => void;
 }) {
-  const [data, setData] = useState<ExamStreamingData>({ count: 0, total: 10, status: "INITIALIZING" });
+  useAIWorkflowStream(jobId);
+  const status = useAIWorkflowStore((state) => state.status);
+  const questions = useAIWorkflowStore((state) => state.questions);
+  const error = useAIWorkflowStore((state) => state.error);
+  const storeProgress = useAIWorkflowStore((state) => state.progress);
+  
   const [history, setHistory] = useState<string[]>([]);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/exams/stream/${jobId}`;
-    const es = new EventSource(url, { withCredentials: true });
-    eventSourceRef.current = es;
+    if (status === "completed") {
+      onComplete?.();
+    } else if (status === "error") {
+      onFail?.(error || "Unknown error");
+    }
+  }, [status, error, onComplete, onFail]);
 
-    es.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
+  useEffect(() => {
+    if (questions.length > 0) {
+      const lastQ = questions[questions.length - 1];
+      setHistory(h => [lastQ.question || lastQ.text || "Question generated", ...h].slice(0, 5));
+    }
+  }, [questions]);
 
-        if (payload.type === "status") {
-          if (payload.status === "COMPLETED" || payload.status === "DONE") {
-            es.close();
-            onComplete?.();
-            return;
-          }
-
-          if (payload.status === "FAILED") {
-            es.close();
-            onFail?.(payload.message || payload.error);
-            return;
-          }
-
-          setData((prev) => ({
-            ...prev,
-            status: payload.status
-          }));
-          return;
-        }
-
-        if (payload.type === "question") {
-          setData((prev) => ({
-            ...prev,
-            count: (payload.index + 1) || prev.count,
-            total: payload.total || prev.total,
-            preview: payload.data
-          }));
-
-          if (payload.data?.question) {
-            setHistory(h => [payload.data.question, ...h].slice(0, 5));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to parse SSE", e);
-      }
-    };
-
-    es.onerror = () => {
-      // Don't fail immediately on first error, let it retry or handle timeout in parent
-      console.error("SSE Connection Error");
-    };
-
-    return () => es.close();
-  }, [jobId, onComplete, onFail]);
-
-  const progress = Math.min(100, (data.count / (data.total || 1)) * 100);
+  // Fallback calculations for UI
+  const total = 10; // Assume 10 for progress rendering if not provided
+  const count = questions.length;
+  // Progress can be driven by store.progress or questions count
+  const progress = storeProgress > 0 ? storeProgress : Math.min(100, (count / total) * 100);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] w-full max-w-2xl mx-auto space-y-8 p-6">
@@ -105,12 +66,10 @@ export function ExamGenerationLoader({ jobId, onComplete, onFail }: {
           Synthesizing Your Exam
         </h2>
         <p className="text-gray-500 dark:text-gray-400 text-sm">
-          {data.status === "GENERATING"
-            ? `Forging question ${data.count + 1} of ${data.total}...`
-            : data.status === "PROCESSING"
+          {status === "generating" || status === "progress"
+            ? `Forging question ${count + 1} of ${total}...`
+            : status === "processing" || status === "idle"
             ? "Worker active: Preparing AI context..."
-            : data.status === "PENDING"
-            ? "Waiting in queue: Priority synthesis..."
             : "Initializing neural pathways..."}
         </p>
       </div>
@@ -134,13 +93,13 @@ export function ExamGenerationLoader({ jobId, onComplete, onFail }: {
               <div className="space-y-1">
                 <span className="text-[10px] uppercase font-bold text-gray-400">Time Left</span>
                 <p className="text-sm font-mono font-bold text-blue-500">
-                  {data.count < data.total ? `~${(data.total - data.count) * 1.5}s` : "0s"}
+                  {count < total ? `~${(total - count) * 1.5}s` : "0s"}
                 </p>
               </div>
               <div className="space-y-1">
                 <span className="text-[10px] uppercase font-bold text-gray-400">Est. Cost</span>
                 <p className="text-sm font-mono font-bold text-amber-500">
-                  ~{(data.count * 850).toLocaleString()} <span className="text-[8px]">TKN</span>
+                  ~{(count * 850).toLocaleString()} <span className="text-[8px]">TKN</span>
                 </p>
               </div>
             </div>
@@ -192,4 +151,4 @@ export function ExamGenerationLoader({ jobId, onComplete, onFail }: {
       </div>
     </div>
   );
-}
+});

@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import clsx from "clsx";
 import { AuthInitializer } from "@/components/auth/AuthInitializer";
+import { ServiceWorkerCleanup } from "@/components/ServiceWorkerCleanup";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -57,6 +58,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ReduxProvider>
+            <ServiceWorkerCleanup />
             <AuthInitializer />
             <QueryProvider>
               {children}

@@ -184,3 +184,49 @@ func (r *RedisClient) SetNX(ctx context.Context, key string, value interface{}, 
 func (r *RedisClient) Subscribe(ctx context.Context, channel string) *redis.PubSub {
 	return r.Client.Subscribe(ctx, channel)
 }
+
+// XAdd adds an entry to a Redis Stream.
+func (r *RedisClient) XAdd(ctx context.Context, stream string, values map[string]interface{}) error {
+	return r.Client.XAdd(ctx, &redis.XAddArgs{
+		Stream: stream,
+		Values: values,
+		// MaxLen limits the stream size to prevent unbounded memory growth
+		MaxLen: 1000,
+		Approx: true,
+	}).Err()
+}
+
+// XRead reads from one or more streams.
+func (r *RedisClient) XRead(ctx context.Context, streams []string, count int64, block time.Duration) ([]redis.XStream, error) {
+	return r.Client.XRead(ctx, &redis.XReadArgs{
+		Streams: streams,
+		Count:   count,
+		Block:   block,
+	}).Result()
+}
+
+// XGroupCreate creates a consumer group.
+func (r *RedisClient) XGroupCreate(ctx context.Context, stream, group, start string) error {
+	err := r.Client.XGroupCreate(ctx, stream, group, start).Err()
+	// Ignore BUSYGROUP error if group already exists
+	if err != nil && strings.Contains(err.Error(), "BUSYGROUP") {
+		return nil
+	}
+	return err
+}
+
+// XReadGroup reads from a consumer group.
+func (r *RedisClient) XReadGroup(ctx context.Context, group, consumer string, streams []string, count int64, block time.Duration) ([]redis.XStream, error) {
+	return r.Client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    group,
+		Consumer: consumer,
+		Streams:  streams,
+		Count:    count,
+		Block:    block,
+	}).Result()
+}
+
+// XAck acknowledges a message in a consumer group.
+func (r *RedisClient) XAck(ctx context.Context, stream, group string, ids ...string) error {
+	return r.Client.XAck(ctx, stream, group, ids...).Err()
+}

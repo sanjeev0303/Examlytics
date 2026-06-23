@@ -250,7 +250,7 @@ def process_delayed_jobs():
             print(f"❌ Delayed Processor Error: {e}")
             time.sleep(5)
 
-def process_job(job):
+async def process_job_async(job):
     session_id = job.get("jobId") or job.get("job_id")
     preferences = job.get("preferences", {})
 
@@ -264,11 +264,10 @@ def process_job(job):
             if session:
                 break
             log_to_file(f"Session {session_id} not found, retry {attempt+1}")
-            time.sleep(1)
+            await asyncio.sleep(1)
 
         if not session:
             log_to_file(f"❌ Session {session_id} NOT FOUND")
-            # Update Redis to reflect failure so UI stops waiting
             r.set(f"job:{session_id}", json.dumps({
                 "jobId": session_id,
                 "status": "FAILED",
@@ -281,42 +280,33 @@ def process_job(job):
         db.commit()
         db.refresh(session)
 
-        # Update Redis job status for polling/initial state
         r.set(f"job:{session_id}", json.dumps({
             "jobId": session_id,
             "status": "PROCESSING",
             "sessionId": session_id
         }), ex=3600)
 
-        # Publish PROCESSING immediately to move UI past PENDING
-        r.publish(f"exam:stream:{session_id}", json.dumps({
-            "type": "status",
-            "status": "PROCESSING",
-            "jobId": session_id,
-            "message": "Worker active: Preparing AI context..."
-        }))
-        log_to_file(f"Published PROCESSING for {session_id}")
+        stream_key = f"exam:stream:{session_id}"
+        
+        # Publish PROCESSING immediately to stream
+        r.xadd(stream_key, {"payload": json.dumps({
+            "eventId": str(uuid.uuid4()),
+            "sessionId": session_id,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "type": "started",
+            "node": "worker",
+            "progress": 5,
+            "payload": {"message": "Worker active: Preparing AI context..."}
+        })}, maxlen=1000)
 
-        # Small sleep to allow client/server subscription to complete
-        time.sleep(1.0)
-
-        # Publish GENERATING status
-        r.publish(f"exam:stream:{session_id}", json.dumps({
-            "type": "status",
-            "status": "GENERATING",
-            "jobId": session_id,
-            "message": "Initializing AI pathways..."
-        }))
         # 2. Fetch User AI Context for Adaptive Intelligence
         user_id = session.user_id
 
         from app.services.context_service import get_user_context
-        from app.schemas.context_schema import UserAIContextSchema
 
         user_ctx = get_user_context(db, user_id)
         if user_ctx:
             prompt_context = user_ctx.to_prompt_context()
-            print(f"🧠 Adaptive Context for {session_id}: {prompt_context}")
         else:
             prompt_context = {
                 "user_level": "Beginner",
@@ -326,9 +316,8 @@ def process_job(job):
                 "avg_time": "N/A",
                 "mistake_patterns": "None detected"
             }
-            print(f"🧠 No prior context for {session_id}. Using defaults.")
 
-        # 3. Generate Content using LangGraph
+        # 3. Generate Content using LangGraph async streaming
         from app.graph.builder import build_exam_generation_graph
         print(f"🤖 Exam Worker: Generating questions via LangGraph for {session_id}...")
 
@@ -352,26 +341,49 @@ def process_job(job):
             "cache_hit": False
         }
         
-        final_state = graph.invoke(initial_state)
-        questions_json = final_state.get("validated_questions", [])
+        final_state = None
+        
+        async for event in graph.astream_events(initial_state, version="v2"):
+            kind = event["event"]
+            
+            # Map graph events to our AIStreamEvent schema
+            if kind == "on_node_end":
+                node_name = event["name"]
+                # Only publish events for our defined nodes, not internal Langchain nodes
+                if node_name in ["check_cache", "expand", "retrieve", "compress", "generate", "validate", "difficulty", "bloom", "weak_topics", "analytics", "recommendations", "persist"]:
+                    final_state = event["data"].get("output", final_state)
+                    
+                    event_type = "progress"
+                    payload = {"message": f"Completed {node_name}"}
+                    
+                    if node_name == "retrieve":
+                        event_type = "retrieval_completed"
+                    elif node_name == "generate":
+                        event_type = "question_generated"
+                    elif node_name == "validate":
+                        event_type = "question_validated"
+                    elif node_name == "analytics":
+                        event_type = "analytics_generated"
+                    elif node_name == "recommendations":
+                        event_type = "recommendations_generated"
+                        
+                    stream_event = {
+                        "eventId": str(uuid.uuid4()),
+                        "sessionId": session_id,
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "type": event_type,
+                        "node": node_name,
+                        "progress": 50, # You can calculate a more accurate progress based on node index
+                        "payload": payload
+                    }
+                    r.xadd(stream_key, {"payload": json.dumps(stream_event)}, maxlen=1000)
+
+        # Check if final state exists and get questions
+        questions_json = final_state.get("validated_questions", []) if final_state else []
         
         if not questions_json:
-             log_to_file(f"⚠️ AI generation returned empty for {session_id}. Error: {final_state.get('error')}")
+             log_to_file(f"⚠️ AI generation returned empty for {session_id}.")
              raise Exception("AI failed to generate questions (Empty Result)")
-
-        # Publish each question for backward compatibility stream
-        for idx, q in enumerate(questions_json):
-            if "id" not in q:
-                q["id"] = str(uuid.uuid4())
-            if "text" not in q and "question" in q:
-                q["text"] = q["question"]
-                
-            r.publish(f"exam:stream:{session_id}", json.dumps({
-                "type": "question",
-                "index": idx,
-                "total": len(questions_json),
-                "data": q
-            }))
 
         # 4. Update Session to READY
         session.questions = questions_json
@@ -387,47 +399,52 @@ def process_job(job):
         r.set(f"job:{session_id}", json.dumps(redis_status), ex=3600)
 
         # Publish completion event
-        r.publish(f"exam:stream:{session_id}", json.dumps({
-            "type": "status",
-            "status": "COMPLETED",
+        r.xadd(stream_key, {"payload": json.dumps({
+            "eventId": str(uuid.uuid4()),
             "sessionId": session_id,
-            "message": "Exam ready!"
-        }))
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "type": "completed",
+            "node": "worker",
+            "progress": 100,
+            "payload": {"message": "Exam ready!"}
+        })}, maxlen=1000)
 
         print(f"✅ Exam Worker: Job {session_id} completed. {len(questions_json)} questions generated.")
-
 
     except Exception as e:
         print(f"❌ Exam Worker: Failed to process job {session_id}: {e}")
         db.rollback()
+        
+        stream_key = f"exam:stream:{session_id}"
+        r.xadd(stream_key, {"payload": json.dumps({
+            "eventId": str(uuid.uuid4()),
+            "sessionId": session_id,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "type": "error",
+            "node": "worker",
+            "progress": 0,
+            "error": str(e)
+        })}, maxlen=1000)
 
-        # Check if it's a rate limit / exhaustion issue -> Delayed Retry
         retry_count = job.get("retry_count", 0)
-
-        # Relaxed check: any failure implies exhaustion given our robust AI retry logic in llm.py
-        # If llm.py returned [], it means ALL models failed 3 times.
         is_exhaustion = True
 
         if is_exhaustion and retry_count < 3:
             print(f"🔄 Moving job {session_id} to DELAYED queue (Attempt {retry_count+1}/3)")
-
-            # Requirement 5: "retry timestamp (now + 10 minutes)"
-            delay = 600 # 10 minutes
+            delay = 600
             retry_time = time.time() + delay
-
             job["retry_count"] = retry_count + 1
-
-            # Add to ZSET
             r.zadd(QUEUE_DELAYED, {json.dumps(job): retry_time})
-            print(f"zzz Job sleeping until {time.ctime(retry_time)}")
             return
 
-        # Mandatory Hard Fallback (Requirement 6) if retries exhausted
         print("⚠️ Retries exhausted. Triggering MANDATORY HARD FALLBACK.")
         perform_hard_fallback(session_id, preferences, db, str(e))
 
     finally:
         db.close()
+
+def process_job(job):
+    asyncio.run(process_job_async(job))
 
 def process_submission_job(job):
     job_id = job.get("jobId")

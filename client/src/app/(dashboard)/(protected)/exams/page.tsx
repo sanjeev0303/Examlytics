@@ -20,11 +20,9 @@ export default function ExamsPage() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
 
-  const { isLoaded, isAuthenticated, user } = useAppSelector((state) => ({
-      isLoaded: !state.auth.loading,
-      isAuthenticated: state.auth.isAuthenticated,
-      user: state.auth.user
-  }));
+  const isLoaded = useAppSelector((state) => !state.auth.loading);
+  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const user = useAppSelector((state) => state.auth.user);
 
   // Fetch Exams
   const { data: exams, isLoading: isLoadingExams } = useQuery({

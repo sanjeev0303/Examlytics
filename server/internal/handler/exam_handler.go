@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"io"
 
@@ -197,27 +198,36 @@ func (h *ExamHandler) StreamExam(c *gin.Context) {
 		return
 	}
 
+	// Read Last-Event-ID for stream recovery
+	lastEventID := c.GetHeader("Last-Event-ID")
+
 	// Set headers for SSE
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
-	c.Header("Transfer-Encoding", "chunked")
 
 	// Create a context for the stream that is cancelled when the client disconnects
 	ctx := c.Request.Context()
 
-	stream, err := h.examService.SubscribeToExamStream(ctx, jobID)
+	stream, err := h.examService.SubscribeToExamStream(ctx, jobID, lastEventID)
 	if err != nil {
 		logger.Error(err, "Error subscribing to exam stream")
 		c.SSEvent("error", err.Error())
 		return
 	}
 
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case <-ctx.Done():
 			logger.Infof("SSE stream closed for job %s", jobID)
 			return false
+		case <-ticker.C:
+			// Send heartbeat comment to keep connection alive
+			c.Render(-1, sseHeartbeat{})
+			return true
 		case msg, ok := <-stream:
 			if !ok {
 				return false
@@ -226,4 +236,16 @@ func (h *ExamHandler) StreamExam(c *gin.Context) {
 			return true
 		}
 	})
+}
+
+// sseHeartbeat implements gin.Render interface for sending SSE comments
+type sseHeartbeat struct{}
+
+func (s sseHeartbeat) Render(w http.ResponseWriter) error {
+	_, err := w.Write([]byte(":\n\n"))
+	return err
+}
+
+func (s sseHeartbeat) WriteContentType(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/event-stream")
 }

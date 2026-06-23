@@ -36,7 +36,7 @@ type ExamService interface {
 	SubmitExamSync(ctx context.Context, userID string, req dto.SubmitExamRequest) (*dto.ExamResultResponse, error)
 	GetUserExamHistory(ctx context.Context, userID string) ([]*dto.ExamSessionResponse, error)
 	GetWeakTopics(ctx context.Context, userID string) ([]*dto.WeakTopicSummary, error)
-	SubscribeToExamStream(ctx context.Context, jobID string) (<-chan string, error)
+	SubscribeToExamStream(ctx context.Context, jobID string, lastEventID string) (<-chan string, error)
 }
 
 // Internal struct to match AI Service JSON Schema (snake_case and camelCase fallback)
@@ -1327,18 +1327,15 @@ func (s *ExamServiceImpl) updateTopicAggregates(ctx context.Context, userID stri
 	return nil
 }
 
-func (s *ExamServiceImpl) SubscribeToExamStream(ctx context.Context, jobID string) (<-chan string, error) {
+func (s *ExamServiceImpl) SubscribeToExamStream(ctx context.Context, jobID string, lastEventID string) (<-chan string, error) {
 	if s.redisClient == nil {
 		return nil, errors.New("redis client not initialized")
 	}
 
-	channelName := fmt.Sprintf("exam:stream:%s", jobID)
-	pubsub := s.redisClient.Subscribe(ctx, channelName)
-
+	streamKey := fmt.Sprintf("exam:stream:%s", jobID)
 	ch := make(chan string)
 
 	go func() {
-		defer pubsub.Close()
 		defer close(ch)
 
 		// 1. Send current status first to handle race conditions
@@ -1355,17 +1352,44 @@ func (s *ExamServiceImpl) SubscribeToExamStream(ctx context.Context, jobID strin
 			}
 		}
 
-		// 2. Listen for messages from Redis
+		currentID := lastEventID
+		if currentID == "" {
+			currentID = "0-0" // Start from beginning of stream
+		}
+
+		// 2. Listen for messages from Redis Stream
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				msg, err := pubsub.ReceiveMessage(ctx)
-				if err != nil {
-					return
+				// Read new events, blocking for up to 5 seconds
+				streams, err := s.redisClient.XRead(ctx, []string{streamKey, currentID}, 10, 5*time.Second)
+				
+				if err != nil && !errors.Is(err, context.DeadlineExceeded) && err.Error() != "redis: nil" {
+					logger.Error(err, "Error reading from stream")
+					// Avoid busy loop on error
+					time.Sleep(1 * time.Second)
+					continue
 				}
-				ch <- msg.Payload
+
+				if len(streams) > 0 {
+					for _, message := range streams[0].Messages {
+						currentID = message.ID
+						
+						// The payload is stored as a string or map. 
+						// Our AI service stores it as a field "payload" or JSON string
+						if payloadStr, ok := message.Values["payload"].(string); ok {
+							// Inject the event ID so the client can use it for reconnects
+							// Optional: we can parse the JSON and add eventId if not present
+							ch <- payloadStr
+						} else {
+							// If not stored as a single string, marshal the map
+							bytes, _ := json.Marshal(message.Values)
+							ch <- string(bytes)
+						}
+					}
+				}
 			}
 		}
 	}()

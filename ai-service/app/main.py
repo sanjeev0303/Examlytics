@@ -8,7 +8,7 @@ import os
 
 load_dotenv()
 
-from app.api import generate, evaluate, analyze, exam, stream, stream_v2
+from app.api import generate, evaluate, analyze, exam
 from app.middleware.observability import AIObservabilityMiddleware
 from app.events.subscriber import listen_to_redis
 
@@ -112,12 +112,9 @@ def metrics():
 def read_root():
     return {"message": "Welcome to Examlytics AI Service"}
 
-from app.api import generate, evaluate, analyze, exam, stream, stream_v2
-
+from app.api import generate, evaluate, analyze, exam
 # Include Routers
 app.include_router(generate.router, prefix="/api/v1/generate", tags=["generation"])
 app.include_router(evaluate.router, prefix="/api/v1/evaluate", tags=["evaluation"])
 app.include_router(analyze.router, prefix="/api/v1/analyze", tags=["analysis"])
-app.include_router(stream.router, prefix="/api/v1/stream", tags=["streaming"])
-app.include_router(stream_v2.router, prefix="/api", tags=["streaming-v2"])
 app.include_router(exam.router, prefix="/api/exam", tags=["exam"])
