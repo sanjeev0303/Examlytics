@@ -36,6 +36,12 @@ async def lifespan(app: FastAPI):
     background_tasks.add(task)
     task.add_done_callback(background_tasks.discard)
 
+    # Start the exam generation worker in a background thread
+    import threading
+    from app.worker.exam_worker import start_worker
+    worker_thread = threading.Thread(target=start_worker, daemon=True)
+    worker_thread.start()
+
     # Initialize Redis Cache
     from app.core.cache import redis_cache
     await redis_cache.connect()

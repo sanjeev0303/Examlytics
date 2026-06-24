@@ -39,7 +39,7 @@ class AIObservabilityMiddleware(BaseHTTPMiddleware):
                 rate = 0.000001 # $1 per 1M tokens (mock)
                 if model == "gpt-4o":
                     rate = 0.00001
-                elif model == "gemini-1.5-flash":
+                elif model == "gemini-3.5-flash":
                     rate = 0.0000005
 
                 COST_ESTIMATE.labels(model=model).inc(count * rate)

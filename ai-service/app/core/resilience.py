@@ -11,7 +11,7 @@ logger = logging.getLogger("ai_resilience")
 logger.setLevel(logging.INFO)
 
 # Redis Setup (Reuse existing env var if possible, else default)
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "rediss://default:gQAAAAAAAR8VAAIgcDEwMDE1MTM2MDQ1NWI0MzRiYjkwMTBmMjc0MmFiYTNlYg@amazed-malamute-73493.upstash.io:6379")
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 class CircuitState(Enum):
@@ -55,13 +55,16 @@ class AIResilienceManager:
 
     def check_circuit(self, provider: str) -> bool:
         """
-        Returns True if call is allowed.
+        Returns True if call is allowed. Fails open on Redis errors.
         """
         key = self._get_circuit_key(provider)
-        # Check if key exists (Circuit is OPEN)
-        if redis_client.exists(key):
-            logger.warning(f"🚫 Circuit Breaker OPEN for {provider}. Blocking calls.")
-            return False
+        try:
+            # Check if key exists (Circuit is OPEN)
+            if redis_client.exists(key):
+                logger.warning(f"🚫 Circuit Breaker OPEN for {provider}. Blocking calls.")
+                return False
+        except Exception as e:
+            logger.error(f"⚠️ Redis error in check_circuit for {provider}: {e}")
         return True
 
     def can_execute(self, provider: str) -> bool:

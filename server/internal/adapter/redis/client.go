@@ -26,20 +26,25 @@ func NewRedisClient(url string) (*RedisClient, error) {
 
 	// Explicitly set TLS config if scheme is rediss
 	if strings.HasPrefix(url, "rediss://") {
-		opt.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
+		if opt.TLSConfig == nil {
+			opt.TLSConfig = &tls.Config{}
 		}
+		opt.TLSConfig.MinVersion = tls.VersionTLS12
 	}
 
-	// Connection pool settings
-	opt.PoolSize = 50     // Default is 10 * NumCPU
-	opt.MinIdleConns = 10 // Keep some connections ready
-	opt.PoolTimeout = 5 * time.Second
-	opt.ConnMaxIdleTime = 5 * time.Minute
+	// Connection pool settings optimized for Upstash
+	opt.DialTimeout = 15 * time.Second
+	opt.ReadTimeout = 10 * time.Second
+	opt.WriteTimeout = 10 * time.Second
+	opt.PoolSize = 50     
+	opt.MinIdleConns = 1  
+	opt.PoolTimeout = 15 * time.Second
+	opt.ConnMaxIdleTime = 30 * time.Second
+	opt.ConnMaxLifetime = 2 * time.Minute
 
 	client := redis.NewClient(opt)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {

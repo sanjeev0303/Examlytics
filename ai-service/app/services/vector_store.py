@@ -1,66 +1,81 @@
-import chromadb
-from chromadb.utils import embedding_functions
 import os
 from typing import List, Dict, Any
+import hashlib
+import json
+from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance, PointStruct
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 
-CHROMA_DB_DIR = os.getenv("CHROMA_DB_DIR", "./chroma_db")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 
 class VectorStoreService:
     def __init__(self):
-        self.client = chromadb.PersistentClient(path=CHROMA_DB_DIR)
-        self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
-        
-        # Collection for knowledge base (RAG)
-        self.kb_collection = self.client.get_or_create_collection(
-            name="knowledge_base",
-            embedding_function=self.embedding_fn
+        # Initialize Qdrant Client
+        self.client = QdrantClient(
+            url=QDRANT_URL,
+            api_key=QDRANT_API_KEY if QDRANT_API_KEY else None
         )
         
-        # Collection for semantic caching of generations
-        self.cache_collection = self.client.get_or_create_collection(
-            name="semantic_cache",
-            embedding_function=self.embedding_fn
-        )
+        # We use FastEmbedEmbeddings for lightweight, CPU-optimized embedding generation
+        # without requiring heavy PyTorch/CUDA dependencies. The default model is BAAI/bge-small-en-v1.5
+        # which outputs 384-dimensional vectors.
+        self.embedding_fn = FastEmbedEmbeddings()
+        
+        # Ensure collections exist
+        self._ensure_collection("knowledge_base")
+        self._ensure_collection("semantic_cache")
+
+    def _ensure_collection(self, name: str):
+        if not self.client.collection_exists(name):
+            self.client.create_collection(
+                collection_name=name,
+                vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+            )
 
     def hybrid_search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
         """
-        Retrieves documents using hybrid search.
-        In this MVP, we use Chroma's standard vector search. 
-        BM25 could be integrated for true hybrid search in the future.
+        Retrieves documents using standard vector search (BM25 could be integrated later).
         """
-        results = self.kb_collection.query(
-            query_texts=[query],
-            n_results=n_results
+        query_emb = self.embedding_fn.embed_query(query)
+            
+        search_result = self.client.search(
+            collection_name="knowledge_base",
+            query_vector=query_emb,
+            limit=n_results
         )
         
         docs = []
-        if results and results['documents'] and len(results['documents']) > 0:
-            for i, doc in enumerate(results['documents'][0]):
-                docs.append({
-                    "id": results['ids'][0][i],
-                    "content": doc,
-                    "metadata": results['metadatas'][0][i] if results['metadatas'] else {}
-                })
+        for scored_point in search_result:
+            docs.append({
+                "id": str(scored_point.id),
+                "content": scored_point.payload.get("page_content", ""),
+                "metadata": scored_point.payload.get("metadata", {})
+            })
         return docs
 
     def check_semantic_cache(self, query: str, threshold: float = 0.9) -> List[Dict[str, Any]]:
         """
         Checks if a semantically similar query was generated recently.
-        Returns cached data if distance is below (1 - threshold).
-        Note: Chroma uses L2 distance by default.
+        Returns cached data if similarity score >= threshold.
         """
-        results = self.cache_collection.query(
-            query_texts=[query],
-            n_results=1
+        query_emb = self.embedding_fn.embed_query(query)
+            
+        search_result = self.client.search(
+            collection_name="semantic_cache",
+            query_vector=query_emb,
+            limit=1
         )
         
-        if results and results['distances'] and len(results['distances'][0]) > 0:
-            distance = results['distances'][0][0]
-            # Convert L2 distance conceptually. A small distance means high similarity.
-            # Typical threshold for "very similar" in L2 with normalized embeddings is < 0.2
-            if distance < (1.0 - threshold): 
-                # Decode metadata back into structure
-                return [results['metadatas'][0][0]]
+        if search_result:
+            best_match = search_result[0]
+            if best_match.score >= threshold:
+                response_json = best_match.payload.get("response_json")
+                if response_json:
+                    try:
+                        return [json.loads(response_json)]
+                    except Exception:
+                        pass
                 
         return []
 
@@ -68,17 +83,22 @@ class VectorStoreService:
         """
         Caches a generation response.
         """
-        # We need a unique ID, hash the query or use random UUID
-        import hashlib
-        import json
         doc_id = hashlib.sha256(query.encode()).hexdigest()
         
-        # We can only store str, int, float, bool in metadatas for Chroma
-        # So we serialize the response data to a JSON string in metadata
-        self.cache_collection.upsert(
-            ids=[doc_id],
-            documents=[query],
-            metadatas=[{"response_json": json.dumps(response_data)}]
+        query_emb = self.embedding_fn.embed_query(query)
+            
+        self.client.upsert(
+            collection_name="semantic_cache",
+            points=[
+                PointStruct(
+                    id=doc_id,
+                    vector=query_emb,
+                    payload={
+                        "query": query,
+                        "response_json": json.dumps(response_data)
+                    }
+                )
+            ]
         )
 
 vector_store = VectorStoreService()

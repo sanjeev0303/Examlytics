@@ -1,9 +1,8 @@
 from app.graph.state import ExamState
 from app.services.vector_store import vector_store
 from app.models.router import router
-from langchain.retrievers.document_compressors import LLMChainExtractor
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain_community.vectorstores import Chroma
+from langchain_classic.retrievers.document_compressors import LLMChainExtractor
+from langchain_classic.retrievers import ContextualCompressionRetriever
 
 def compress_context(state: ExamState) -> ExamState:
     session_id = state.get("session_id")
@@ -11,11 +10,12 @@ def compress_context(state: ExamState) -> ExamState:
     preferences = state.get("preferences", {})
     topic = preferences.get("topic_id", "General")
     
-    # Create LangChain Chroma vectorstore wrapper
-    lc_vectorstore = Chroma(
+    from langchain_qdrant import QdrantVectorStore
+    
+    lc_vectorstore = QdrantVectorStore(
         client=vector_store.client,
         collection_name="knowledge_base",
-        embedding_function=vector_store.embedding_fn
+        embedding=vector_store.embedding_fn
     )
     
     # Base retriever

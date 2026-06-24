@@ -11,7 +11,7 @@ COST_GENERATION = 15 # Expensive
 COST_EVALUATION = 5  # Moderate
 COST_ANALYTICS = 10  # Moderate
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "rediss://default:gQAAAAAAAR8VAAIgcDEwMDE1MTM2MDQ1NWI0MzRiYjkwMTBmMjc0MmFiYTNlYg@amazed-malamute-73493.upstash.io:6379")
 
 class CostTracker:
     def __init__(self):

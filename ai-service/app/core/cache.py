@@ -41,7 +41,7 @@ class RedisCache:
 
     async def connect(self):
         if not self.redis:
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            redis_url = os.getenv("REDIS_URL", "rediss://default:gQAAAAAAAR8VAAIgcDEwMDE1MTM2MDQ1NWI0MzRiYjkwMTBmMjc0MmFiYTNlYg@amazed-malamute-73493.upstash.io:6379")
             self.redis = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
             self.semantic = SemanticCache(self.redis)
             print(f"✅ AI Service: Connected to Redis Cache at {redis_url}")

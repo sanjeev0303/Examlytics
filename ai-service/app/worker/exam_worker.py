@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db import SessionLocal
 from app.models.db_models import ExamSession, Question, Topic, UserWeakTopic
+import asyncio
+from app.graph.builder import build_exam_generation_graph
 from app.schemas.analytics import BlueprintRequest, QuestionCriteria
 
 # Redis Setup
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "rediss://default:gQAAAAAAAR8VAAIgcDEwMDE1MTM2MDQ1NWI0MzRiYjkwMTBmMjc0MmFiYTNlYg@amazed-malamute-73493.upstash.io:6379")
 r = redis.Redis.from_url(REDIS_URL)
 
 QUEUE_NAME = "queue:exam_generation_v2"
@@ -81,24 +83,15 @@ def start_worker():
 
     while True:
         try:
-            # Check if worker is enabled via Redis flag
+            # Check if worker is enabled via Redis flag (default to True if not set)
             worker_enabled = r.get("exam:worker:enabled")
-
-            if worker_enabled and (worker_enabled == b"true" or worker_enabled == "true"):
+            if worker_enabled is None or worker_enabled == b"true" or worker_enabled == "true":
                 pass
             else:
                 time.sleep(1)
                 continue
 
-            # Blocking Pop from Main Queues (Priority: Submission > Generation)
-            result = r.blpop(QUEUE_SUBMISSION, timeout=1)
-            if result:
-                _, data = result
-                job = json.loads(data)
-                process_submission_job(job)
-                continue
-
-            # If no submission, check generation
+            # Blocking Pop from Generation Queue
             result = r.blpop(QUEUE_NAME, timeout=1)
             if not result:
                 continue
@@ -183,7 +176,7 @@ def process_delayed_jobs():
         try:
             # Check if worker is enabled
             worker_enabled = r.get("exam:worker:enabled")
-            if worker_enabled != b"true" and worker_enabled != "true":
+            if worker_enabled is not None and worker_enabled != b"true" and worker_enabled != "true":
                 time.sleep(5)
                 continue
 
@@ -318,7 +311,6 @@ async def process_job_async(job):
             }
 
         # 3. Generate Content using LangGraph async streaming
-        from app.graph.builder import build_exam_generation_graph
         print(f"🤖 Exam Worker: Generating questions via LangGraph for {session_id}...")
 
         graph = build_exam_generation_graph()
@@ -412,9 +404,19 @@ async def process_job_async(job):
         print(f"✅ Exam Worker: Job {session_id} completed. {len(questions_json)} questions generated.")
 
     except Exception as e:
+        log_to_file(f"❌ Exam Worker: Failed to process job {session_id}: {e}")
+        import traceback
+        log_to_file(traceback.format_exc())
         print(f"❌ Exam Worker: Failed to process job {session_id}: {e}")
         db.rollback()
-        
+
+        r.set(f"job:{session_id}", json.dumps({
+            "jobId": session_id,
+            "status": "FAILED",
+            "error": str(e)
+        }), ex=3600)
+
+        # Notify via stream
         stream_key = f"exam:stream:{session_id}"
         r.xadd(stream_key, {"payload": json.dumps({
             "eventId": str(uuid.uuid4()),

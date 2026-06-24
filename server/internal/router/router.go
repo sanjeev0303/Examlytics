@@ -63,6 +63,8 @@ func (r *Router) Setup() *gin.Engine {
 	redisClient, err := redis.NewRedisClient(r.cfg.RedisURL)
 	if err != nil && r.cfg.RedisURL != "" {
 		logger.Errorf("Failed to connect to Redis: %v", err)
+	} else if r.cfg.RedisURL != "" {
+		logger.Infof("✅ Connected to Redis successfully")
 	}
 
 	// Initialize repositories
