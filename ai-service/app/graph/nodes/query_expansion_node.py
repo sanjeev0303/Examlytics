@@ -14,15 +14,18 @@ def expand_queries(state: ExamState) -> ExamState:
     preferences = state.get("preferences", {})
     topic = preferences.get("topic_id", "General")
     
-    llm = router.get_model("generation").with_structured_output(ExpandedQueries)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are an AI assistant tasked with query expansion for a vector database. Given a topic, generate 3 different phrasing or sub-topic queries to improve retrieval."),
         ("user", "{topic}")
     ])
-    chain = prompt | llm
     
     try:
-        res = chain.invoke({"topic": topic})
+        res = router.invoke_chain(
+            task_type="generation",
+            prompt=prompt,
+            output_schema=ExpandedQueries,
+            inputs={"topic": topic}
+        )
         # Add the original topic as well
         state["expanded_queries"] = [topic] + res.queries
     except Exception as e:
@@ -33,3 +36,4 @@ def expand_queries(state: ExamState) -> ExamState:
     state["streaming_status"] = "query_expansion_completed"
     
     return state
+

@@ -8,6 +8,4 @@ def detect_weak_topics(state: ExamState) -> ExamState:
     
     # Placeholder: In Phase D this will be powered by the weak_topic_agent
     # using the validation and historical context
-    state["weak_topics"] = []
-    
-    return state
+    return {"weak_topics": []}

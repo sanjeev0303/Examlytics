@@ -14,7 +14,7 @@ def compress_context(state: ExamState) -> ExamState:
     
     lc_vectorstore = QdrantVectorStore(
         client=vector_store.client,
-        collection_name="knowledge_base",
+        collection_name="knowledge_base_v3",
         embedding=vector_store.embedding_fn
     )
     

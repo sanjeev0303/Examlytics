@@ -15,26 +15,40 @@ def score_bloom_taxonomy(state: ExamState) -> ExamState:
     if not questions:
         questions = state.get("generated_questions", [])
         
-    llm = router.get_model("validation").with_structured_output(BloomTaxonomySchema)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Classify the provided question according to Bloom's taxonomy."),
         ("user", "{question_json}")
     ])
-    chain = prompt | llm
     
     bloom_scores = []
     
     for q in questions:
+        # Optimization: use pre-existing bloom_taxonomy if populated by generation step
+        if q.get("bloom_taxonomy"):
+            score_data = q["bloom_taxonomy"]
+            if isinstance(score_data, dict):
+                score_data["question_id"] = q.get("id")
+                bloom_scores.append(score_data)
+                continue
+            elif hasattr(score_data, "model_dump"):
+                score_dict = score_data.model_dump()
+                score_dict["question_id"] = q.get("id")
+                bloom_scores.append(score_dict)
+                continue
+                
         try:
-            res = chain.invoke({"question_json": json.dumps(q)})
+            res = router.invoke_chain(
+                task_type="validation",
+                prompt=prompt,
+                output_schema=BloomTaxonomySchema,
+                inputs={"question_json": json.dumps(q)}
+            )
             score_data = res.model_dump()
             score_data["question_id"] = q.get("id")
             bloom_scores.append(score_data)
         except Exception as e:
             print(f"Error scoring bloom taxonomy: {e}")
             
-    state["bloom_scores"] = bloom_scores
     emitter.emit(session_id, "bloom_scoring_completed")
-    state["streaming_status"] = "bloom_scoring_completed"
-    
-    return state
+    return {"bloom_scores": bloom_scores}
+

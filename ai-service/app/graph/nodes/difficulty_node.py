@@ -13,26 +13,40 @@ def score_difficulty(state: ExamState) -> ExamState:
     if not questions:
         questions = state.get("generated_questions", [])
         
-    llm = router.get_model("validation").with_structured_output(DifficultyScoreSchema)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Analyze the difficulty of the provided question."),
         ("user", "{question_json}")
     ])
-    chain = prompt | llm
     
     difficulty_scores = []
     
     for q in questions:
+        # Optimization: use pre-existing difficulty_score if populated by generation step
+        if q.get("difficulty_score"):
+            score_data = q["difficulty_score"]
+            if isinstance(score_data, dict):
+                score_data["question_id"] = q.get("id")
+                difficulty_scores.append(score_data)
+                continue
+            elif hasattr(score_data, "model_dump"):
+                score_dict = score_data.model_dump()
+                score_dict["question_id"] = q.get("id")
+                difficulty_scores.append(score_dict)
+                continue
+                
         try:
-            res = chain.invoke({"question_json": json.dumps(q)})
+            res = router.invoke_chain(
+                task_type="validation",
+                prompt=prompt,
+                output_schema=DifficultyScoreSchema,
+                inputs={"question_json": json.dumps(q)}
+            )
             score_data = res.model_dump()
             score_data["question_id"] = q.get("id")
             difficulty_scores.append(score_data)
         except Exception as e:
             print(f"Error scoring difficulty: {e}")
             
-    state["difficulty_scores"] = difficulty_scores
     emitter.emit(session_id, "difficulty_scoring_completed")
-    state["streaming_status"] = "difficulty_scoring_completed"
-    
-    return state
+    return {"difficulty_scores": difficulty_scores}
+

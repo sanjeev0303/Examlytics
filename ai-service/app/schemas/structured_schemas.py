@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any, Optional
 
 # --- Phase A: Canonical Structured Schemas ---
@@ -28,6 +28,13 @@ class QuestionSchema(BaseModel):
     bloom_taxonomy: Optional[BloomTaxonomySchema] = None
     difficulty_score: Optional[DifficultyScoreSchema] = None
 
+    @field_validator("options", mode="before")
+    @classmethod
+    def convert_options_to_list(cls, v):
+        if isinstance(v, str):
+            return [opt.strip() for opt in v.split(",") if opt.strip()]
+        return v
+
 class QuestionBatchSchema(BaseModel):
     questions: List[QuestionSchema] = Field(description="A list of generated questions")
 
@@ -37,6 +44,21 @@ class ValidationSchema(BaseModel):
     confidence: float = Field(description="Confidence score in the validation from 0.0 to 1.0")
     issues: List[str] = Field(default_factory=list, description="List of issues found, if any")
     corrected_question: Optional[QuestionSchema] = Field(default=None, description="The corrected question if issues were fixable")
+
+    @field_validator("issues", mode="before")
+    @classmethod
+    def convert_issues_to_list(cls, v):
+        if isinstance(v, str):
+            return [v] if v.strip() else []
+        return v
+
+    @field_validator("corrected_question", mode="before")
+    @classmethod
+    def handle_empty_correction(cls, v):
+        if isinstance(v, dict) and not v:
+            return None
+        return v
+
 
 class WeakTopicSchema(BaseModel):
     topic_id: str = Field(description="Identifier for the topic")

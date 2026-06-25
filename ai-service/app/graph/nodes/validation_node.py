@@ -10,20 +10,23 @@ def validate_questions(state: ExamState) -> ExamState:
     emitter.emit(session_id, "validation_started")
     
     questions = state.get("generated_questions", [])
-    llm = router.get_model("validation").with_structured_output(ValidationSchema)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are an expert exam reviewer. Validate the provided question."),
         ("user", "{question_json}")
     ])
-    chain = prompt | llm
     
     validated_questions = []
     confidence_scores = []
     
     for q in questions:
         try:
-            res = chain.invoke({"question_json": json.dumps(q)})
+            res = router.invoke_chain(
+                task_type="validation",
+                prompt=prompt,
+                output_schema=ValidationSchema,
+                inputs={"question_json": json.dumps(q)}
+            )
             # For simplicity now, we just pass the question if valid
             if res.is_valid:
                 validated_questions.append(q)
@@ -43,3 +46,4 @@ def validate_questions(state: ExamState) -> ExamState:
     emitter.emit(session_id, "validation_completed")
     state["streaming_status"] = "validation_completed"
     return state
+

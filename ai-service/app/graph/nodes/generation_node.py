@@ -2,7 +2,7 @@ from app.graph.state import ExamState
 from app.graph.event_emitter import emitter
 from app.models.router import router
 from langchain_core.prompts import ChatPromptTemplate
-from app.schemas.structured_schemas import QuestionSchema
+from app.schemas.structured_schemas import QuestionBatchSchema
 
 def generate_questions(state: ExamState) -> ExamState:
     session_id = state.get("session_id")
@@ -12,25 +12,34 @@ def generate_questions(state: ExamState) -> ExamState:
     question_count = preferences.get("question_count", 5)
     topics = preferences.get("topic_id", "General")
     
-    llm = router.get_model("generation")
-    
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert exam generator. Generate a single question according to the schema."),
-        ("user", f"Create 1 question about {topics}. This is question {{current_index}} of {question_count}. Preferences: {preferences}")
+        ("system", "You are an expert exam generator. Generate a batch of {question_count} distinct questions matching the topic and preferences. Make sure to fill in all fields including the bloom_taxonomy and difficulty_score (with score and reasoning) for each question to enable downstream analytics."),
+        ("user", "Create {question_count} questions about topic '{topics}'. Preferences: {preferences}")
     ])
     
     try:
-        structured_llm = llm.with_structured_output(QuestionSchema)
-        chain = prompt | structured_llm
+        res = router.invoke_chain(
+            task_type="generation",
+            prompt=prompt,
+            output_schema=QuestionBatchSchema,
+            inputs={
+                "question_count": question_count,
+                "topics": topics,
+                "preferences": str(preferences)
+            }
+        )
         
         generated_questions = []
-        for i in range(question_count):
-            res = chain.invoke({"current_index": i + 1})
-            q_dict = res.model_dump()
+        for i, q in enumerate(res.questions):
+            q_dict = q.model_dump()
             generated_questions.append(q_dict)
             
-            # Emit individual question immediately
-            emitter.emit(session_id, "question_generated", {"question": q_dict, "index": i + 1, "total": question_count})
+            # Emit individual question immediately to simulate progress
+            emitter.emit(session_id, "question_generated", {
+                "question": q_dict,
+                "index": i + 1,
+                "total": len(res.questions)
+            })
         
         state["generated_questions"] = generated_questions
         state["streaming_status"] = "generation_completed"
@@ -40,3 +49,4 @@ def generate_questions(state: ExamState) -> ExamState:
         state["retry_count"] = state.get("retry_count", 0) + 1
         
     return state
+
